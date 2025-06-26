@@ -1,4 +1,4 @@
-# TFT Match Data
+# Match Data
 
 This repository contains match and player data for TFT (Teamfight Tactics) collected from Riot Games API.
 
