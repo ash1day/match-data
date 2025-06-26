@@ -5,22 +5,33 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
 ## Structure
 
 ```
-├── matches/
-│   └── {patch}-{region}/
-│       └── matches.json.gz
-└── players/
-    └── {region}/
-        └── players.json.gz
+└── {region}/
+    ├── players.json.gz
+    └── matches/
+        └── {patch}.json.gz
 ```
 
-### Matches
-- **patch**: Game version (e.g., "14.24")
-- **region**: Server region (e.g., "JP1", "NA1", "EUW1")
-- **matches.json.gz**: GZIP compressed JSON array of match data
+### Example
+```
+├── JP1/
+│   ├── players.json.gz
+│   └── matches/
+│       ├── 14.24.json.gz
+│       └── 14.23.json.gz
+├── NA1/
+│   ├── players.json.gz
+│   └── matches/
+│       └── 14.24.json.gz
+└── EUW1/
+    ├── players.json.gz
+    └── matches/
+        └── 14.24.json.gz
+```
 
-### Players
-- **region**: Server region
-- **players.json.gz**: GZIP compressed JSON array of high-tier player data (Challenger/Grandmaster/Master)
+### Data Format
+- **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR")
+- **players.json.gz**: High-tier player data (Challenger/Grandmaster/Master)
+- **{patch}.json.gz**: Match data for specific game version
 
 ## Data Format
 
