@@ -1,18 +1,26 @@
 # TFT Match Data
 
-This repository contains match data for TFT (Teamfight Tactics) collected from Riot Games API.
+This repository contains match and player data for TFT (Teamfight Tactics) collected from Riot Games API.
 
 ## Structure
 
 ```
-match-data/
-├── {patch}-{region}/
-│   └── matches.json.gz
+├── matches/
+│   └── {patch}-{region}/
+│       └── matches.json.gz
+└── players/
+    └── {region}/
+        └── players.json.gz
 ```
 
+### Matches
 - **patch**: Game version (e.g., "14.24")
 - **region**: Server region (e.g., "JP1", "NA1", "EUW1")
 - **matches.json.gz**: GZIP compressed JSON array of match data
+
+### Players
+- **region**: Server region
+- **players.json.gz**: GZIP compressed JSON array of high-tier player data (Challenger/Grandmaster/Master)
 
 ## Data Format
 
