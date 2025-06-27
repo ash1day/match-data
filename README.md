@@ -12,6 +12,7 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
 ```
 
 ### Example
+
 ```
 ├── JP1/
 │   ├── players.json.gz
@@ -29,6 +30,7 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
 ```
 
 ### Data Format
+
 - **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR")
 - **players.json.gz**: High-tier player data (Challenger/Grandmaster/Master)
 - **{patch}.json.gz**: Match data for specific game version
