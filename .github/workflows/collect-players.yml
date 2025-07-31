@@ -52,7 +52,24 @@ jobs:
             👥 Collected by GitHub Actions
             
             Co-Authored-By: GitHub Actions <noreply@github.com>"
-            git push origin main
+            
+            # Retry push up to 3 times in case of concurrent commits
+            for i in 1 2 3; do
+              if git push origin main; then
+                echo "Successfully pushed changes"
+                break
+              else
+                echo "Push failed, attempt $i of 3"
+                if [ $i -lt 3 ]; then
+                  echo "Pulling latest changes and retrying..."
+                  git pull --rebase origin main
+                  sleep 5
+                else
+                  echo "Failed to push after 3 attempts"
+                  exit 1
+                fi
+              fi
+            done
           else
             echo "No player updates to commit"
           fi
