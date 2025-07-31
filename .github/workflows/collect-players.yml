@@ -1,0 +1,58 @@
+name: Collect Players
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 11 * * *' # 毎日 日本時間 20:00 (マッチ収集の1時間前)
+
+env:
+  NODE_ENV: production
+
+jobs:
+  collect-players:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Pull latest changes
+        run: git pull origin main
+
+      - name: Collect player data
+        run: yarn collect-players
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+
+      - name: Push collected data
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update player data
+
+            👥 Collected by GitHub Actions
+            
+            Co-Authored-By: GitHub Actions <noreply@github.com>"
+            git push origin main
+          else
+            echo "No player updates to commit"
+          fi

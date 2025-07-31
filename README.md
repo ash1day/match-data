@@ -6,9 +6,10 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
 
 ```
 └── {region}/
-    ├── players.json.gz
-    └── matches/
-        └── {patch}.json.gz
+    ├── players.json.gz     # High-tier player data
+    └── {patch}/
+        ├── matches.parquet # Match data in Parquet format
+        └── index.json.gz   # Match ID index
 ```
 
 ### Example
@@ -16,36 +17,94 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
 ```
 ├── JP1/
 │   ├── players.json.gz
-│   └── matches/
-│       ├── 14.24.json.gz
-│       └── 14.23.json.gz
+│   ├── 1515.00/
+│   │   ├── matches.parquet
+│   │   └── index.json.gz
+│   └── 1514.00/
+│       ├── matches.parquet
+│       └── index.json.gz
 ├── NA1/
 │   ├── players.json.gz
-│   └── matches/
-│       └── 14.24.json.gz
-└── EUW1/
+│   └── 1515.00/
+│       ├── matches.parquet
+│       └── index.json.gz
+└── KR/
     ├── players.json.gz
-    └── matches/
-        └── 14.24.json.gz
+    └── 1515.00/
+        ├── matches.parquet
+        └── index.json.gz
 ```
 
 ### Data Format
 
-- **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR")
+- **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR", "BR1", etc.)
 - **players.json.gz**: High-tier player data (Challenger/Grandmaster/Master)
-- **{patch}.json.gz**: Match data for specific game version
+- **matches.parquet**: Match data in compressed Parquet format for efficient storage and querying
+- **index.json.gz**: List of match IDs in the corresponding matches.parquet file
+
+## Scripts
+
+### Setup
+
+```bash
+yarn install
+cp .env.example .env
+# Edit .env and add your RIOT_API_KEY
+```
+
+### Collecting Data
+
+```bash
+# Collect player data (run first)
+yarn collect-players
+
+# Collect match data
+yarn collect-matches
+```
+
+## Automated Collection
+
+Data is automatically collected daily by GitHub Actions:
+
+- Player data: Daily at 20:00 JST
+- Match data: Daily at 21:00 JST
+
+## Development
+
+```bash
+# Install dependencies
+yarn install
+
+# Run linting
+yarn lint
+
+# Fix linting issues
+yarn fix
+```
 
 ## Data Format
 
-Each `matches.json.gz` file contains an array of match objects following the Riot API MatchDto format.
+### Players Data (players.json.gz)
 
-## Usage
+Compressed JSON file containing an array of player objects:
 
-This repository is used as a Git submodule by the main TFT statistics application.
+```json
+[
+  {
+    "summonerId": "...",
+    "summonerName": "...",
+    "puuid": "...",
+    "riotTag": "...",
+    "tier": "CHALLENGER",
+    "division": null,
+    "leaguePoints": 1234
+  }
+]
+```
 
-## Updates
+### Match Data (matches.parquet)
 
-Data is automatically updated every 3 days by GitHub Actions.
+Parquet format containing match objects following the Riot API MatchDto format.
 
 ## License
 

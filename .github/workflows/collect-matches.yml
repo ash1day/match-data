@@ -1,0 +1,58 @@
+name: Collect Matches
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 12 * * *' # 毎日 日本時間 21:00
+
+env:
+  NODE_ENV: production
+
+jobs:
+  collect-matches:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Pull latest changes
+        run: git pull origin main
+
+      - name: Collect match data
+        run: yarn collect-matches
+        env:
+          RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+
+      - name: Push collected data
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update match data
+
+            🎮 Collected by GitHub Actions
+            
+            Co-Authored-By: GitHub Actions <noreply@github.com>"
+            git push origin main
+          else
+            echo "No new matches to commit"
+          fi
