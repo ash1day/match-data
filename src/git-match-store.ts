@@ -1,10 +1,10 @@
 // Git-based match data storage (S3の代替)
 import { execSync } from 'child_process'
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs'
-import { join, dirname } from 'path'
-import type { MatchTFTDTO } from 'twisted/dist/models-dto'
-import { gzipSync, gunzipSync } from 'zlib'
 import { Database } from 'duckdb-async'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname, join } from 'path'
+import type { MatchTFTDTO } from 'twisted/dist/models-dto'
+import { gunzipSync, gzipSync } from 'zlib'
 
 // データリポジトリのパス（現在のディレクトリ）
 const DATA_REPO_PATH = process.cwd()
@@ -253,7 +253,7 @@ export async function getAvailablePatches(): Promise<string[]> {
             }
           }
         })
-      } catch (e) {
+      } catch {
         // No patch directories in this region
       }
     }
@@ -401,7 +401,7 @@ export async function getAvailableRegionsList(): Promise<string[]> {
       .split('\n')
       .map((dir) => dir.replace('/', ''))
       .filter((dir) => !dir.startsWith('.'))
-  } catch (e) {
+  } catch {
     return []
   }
 }
