@@ -28,8 +28,10 @@ export async function fetchRiotData(): Promise<void> {
   console.log(`Target tiers: ${tiers.join(', ')}`)
 
   try {
-    // マッチ数制限なしで全プレイヤーのデータを収集
-    await collectMatchesFromAllRegions(regions, tiers)
+    // 10万試合を上限として全プレイヤーのデータを収集
+    const maxMatches = 100000
+    console.log(`Match limit: ${maxMatches.toLocaleString()} matches`)
+    await collectMatchesFromAllRegions(regions, tiers, maxMatches)
     console.log('Riot API data fetch completed successfully')
   } catch (error) {
     console.error('Failed to fetch Riot API data:', error)
