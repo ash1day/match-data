@@ -188,3 +188,32 @@ export async function finalizeDataStore(): Promise<void> {
   // S3にアップロード
   await uploadToS3()
 }
+
+/**
+ * プレイヤーデータを読み込み
+ */
+export async function loadPlayerData(region: string): Promise<any> {
+  const filePath = path.join(DATA_DIR, region, 'players.json.gz')
+  
+  if (!fs.existsSync(filePath)) {
+    return null
+  }
+
+  const compressed = fs.readFileSync(filePath)
+  const decompressed = zlib.gunzipSync(compressed)
+  return JSON.parse(decompressed.toString())
+}
+
+/**
+ * プレイヤーデータを保存
+ */
+export async function savePlayerData(players: any[], region: string): Promise<void> {
+  const dir = path.join(DATA_DIR, region)
+  fs.mkdirSync(dir, { recursive: true })
+
+  const filePath = path.join(dir, 'players.json.gz')
+  const compressed = zlib.gzipSync(JSON.stringify(players))
+  fs.writeFileSync(filePath, compressed)
+  
+  console.log(`  ✅ Saved ${players.length} players to ${filePath}`)
+}

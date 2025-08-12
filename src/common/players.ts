@@ -1,4 +1,4 @@
-import { loadPlayerData, savePlayerData, initDataRepo } from '../git-match-store'
+import { loadPlayerData, savePlayerData, initDataStore } from '../s3-match-store'
 
 export interface PlayerInfo {
   summonerId: string
@@ -20,7 +20,7 @@ export class Players {
   private cache: Map<string, PlayersData> = new Map() // region -> cache
 
   constructor() {
-    // Git版ではS3Client不要
+    // S3版では初期化時にダウンロードしない（別途initDataStoreで行う）
   }
 
   async loadPlayers(region: string): Promise<PlayersData> {
