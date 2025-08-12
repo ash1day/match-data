@@ -1,10 +1,17 @@
-# Match Data
+# Match Data Collection Scripts
 
-This repository contains match and player data for TFT (Teamfight Tactics) collected from Riot Games API.
+This repository contains **scripts only** for collecting TFT (Teamfight Tactics) match data from Riot Games API.
 
-## Structure
+## ⚠️ Data Storage
+
+**All data is stored in AWS S3. This repository contains no data files, only collection scripts.**
+
+## Data Structure in S3
+
+Data is stored in S3 bucket `tftips` under the `match-data/` prefix:
 
 ```
+s3://tftips/match-data/
 └── {region}/
     ├── players.json.gz     # High-tier player data
     └── {patch}/
@@ -12,54 +19,53 @@ This repository contains match and player data for TFT (Teamfight Tactics) colle
         └── index.json.gz   # Match ID index
 ```
 
-### Example
-
-```
-├── JP1/
-│   ├── players.json.gz
-│   ├── 1515.00/
-│   │   ├── matches.parquet
-│   │   └── index.json.gz
-│   └── 1514.00/
-│       ├── matches.parquet
-│       └── index.json.gz
-├── NA1/
-│   ├── players.json.gz
-│   └── 1515.00/
-│       ├── matches.parquet
-│       └── index.json.gz
-└── KR/
-    ├── players.json.gz
-    └── 1515.00/
-        ├── matches.parquet
-        └── index.json.gz
-```
-
 ### Data Format
 
 - **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR", "BR1", etc.)
 - **players.json.gz**: High-tier player data (Challenger/Grandmaster/Master)
-- **matches.parquet**: Match data in compressed Parquet format for efficient storage and querying
-- **index.json.gz**: List of match IDs in the corresponding matches.parquet file
+- **matches.parquet**: Match data in compressed Parquet format
+- **index.json.gz**: List of match IDs for deduplication
 
-## Scripts
+## Setup
 
-### Setup
+### Prerequisites
+- Node.js 18+
+- AWS credentials with access to `tftips` S3 bucket
+- Riot API key
+
+### Environment Setup
 
 ```bash
 yarn install
 cp .env.example .env
-# Edit .env and add your RIOT_API_KEY
+# Edit .env and add:
+# - RIOT_API_KEY
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
 ```
 
-### Collecting Data
+## Data Collection Workflow
+
+The collection process follows this flow:
+1. **Download** existing data from S3
+2. **Fetch** new data from Riot API (incremental/diff only)
+3. **Upload** merged data back to S3
+
+### Commands
 
 ```bash
-# Collect player data (run first)
+# Check S3 status
+yarn s3:status
+
+# Collect player data
 yarn collect-players
 
-# Collect match data
+# Full collection workflow (download → fetch diff → upload)
 yarn collect-matches
+
+# Manual S3 operations
+yarn s3:download  # Download from S3
+yarn s3:upload    # Upload to S3
 ```
 
 ## Automated Collection
@@ -68,6 +74,8 @@ Data is automatically collected daily by GitHub Actions:
 
 - Player data: Daily at 20:00 JST
 - Match data: Daily at 21:00 JST
+- **S3 Upload**: Automatically uploads to S3 on push to main branch
+- **Manual Sync**: Use GitHub Actions workflow for manual upload/download
 
 ## Development
 

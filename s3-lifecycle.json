@@ -1,0 +1,27 @@
+{
+  "Rules": [
+    {
+      "Id": "OldMatchDataToIntelligentTiering",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "match-data/"
+      },
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "INTELLIGENT_TIERING"
+        }
+      ]
+    },
+    {
+      "Id": "DeleteOldMatchDataVersions",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "match-data/"
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 7
+      }
+    }
+  ]
+}

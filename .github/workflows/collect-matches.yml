@@ -1,4 +1,4 @@
-name: Collect Matches
+name: Collect Matches (S3)
 
 on:
   workflow_dispatch:
@@ -28,17 +28,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install Git LFS
-        run: |
-          curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-          sudo apt-get install git-lfs
-          git lfs install
-
-      - name: Pull LFS files
-        run: git lfs pull
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -49,15 +38,19 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Configure Git
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Download existing data from S3
         run: |
-          git config --global user.email "actions@github.com"
-          git config --global user.name "GitHub Actions"
+          echo "📥 Downloading existing data from S3..."
+          yarn s3:download || echo "⚠️ No existing data in S3 (may be first run)"
 
-      - name: Pull latest changes
-        run: git pull origin main
-
-      - name: Collect match data
+      - name: Collect match data (incremental)
         run: |
           ARGS=""
           if [ -n "${{ github.event.inputs.max_matches }}" ]; then
@@ -66,37 +59,18 @@ jobs:
           if [ "${{ github.event.inputs.regions }}" != "all" ] && [ -n "${{ github.event.inputs.regions }}" ]; then
             ARGS="$ARGS --regions=${{ github.event.inputs.regions }}"
           fi
+          
+          echo "🎮 Collecting new matches from Riot API..."
           yarn collect-matches $ARGS
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
 
-      - name: Push collected data
+      - name: Upload to S3
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git add .
-            git commit -m "Update match data
-
-            🎮 Collected by GitHub Actions
-            
-            Co-Authored-By: GitHub Actions <noreply@github.com>"
-            
-            # Retry push up to 3 times in case of concurrent commits
-            for i in 1 2 3; do
-              if git push origin main; then
-                echo "Successfully pushed changes"
-                break
-              else
-                echo "Push failed, attempt $i of 3"
-                if [ $i -lt 3 ]; then
-                  echo "Pulling latest changes and retrying..."
-                  git pull --rebase origin main
-                  sleep 5
-                else
-                  echo "Failed to push after 3 attempts"
-                  exit 1
-                fi
-              fi
-            done
-          else
-            echo "No new matches to commit"
-          fi
+          echo "📤 Uploading updated data to S3..."
+          yarn s3:upload
+          
+      - name: Show summary
+        run: |
+          echo "✅ Match collection complete!"
+          yarn s3:status
