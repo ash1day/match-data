@@ -114,7 +114,8 @@ async function collectMatchesFromRegion(
   // パッチごとにグループ化
   const matchesByPatch = new Map<string, MatchTFTDTO[]>()
   for (const match of matches) {
-    const patch = formatGameVersionToPatch(match.info.game_version)
+    const patchNum = formatGameVersionToPatch(match.info.game_version)
+    const patch = patchNum.toString()
     if (!matchesByPatch.has(patch)) {
       matchesByPatch.set(patch, [])
     }
