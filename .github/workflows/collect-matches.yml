@@ -48,7 +48,7 @@ jobs:
       - name: Download existing data from S3
         run: |
           echo "📥 Downloading existing data from S3..."
-          yarn s3:download || echo "⚠️ No existing data in S3 (may be first run)"
+          yarn tsx src/sync-s3.ts download || echo "⚠️ No existing data in S3 (may be first run)"
 
       - name: Collect match data (incremental)
         run: |
@@ -68,9 +68,9 @@ jobs:
       - name: Upload to S3
         run: |
           echo "📤 Uploading updated data to S3..."
-          yarn s3:upload
+          yarn tsx src/sync-s3.ts upload
           
       - name: Show summary
         run: |
           echo "✅ Match collection complete!"
-          yarn s3:status
+          yarn tsx src/sync-s3.ts status

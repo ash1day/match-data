@@ -23,7 +23,7 @@ const DATA_DIR = process.cwd()
 export async function downloadFromS3(): Promise<void> {
   console.log('📥 Downloading existing data from S3...')
   try {
-    execSync('./sync-s3.sh download', { stdio: 'inherit', cwd: DATA_DIR })
+    execSync('tsx src/sync-s3.ts download', { stdio: 'inherit', cwd: DATA_DIR })
     console.log('✅ Download complete')
   } catch (error) {
     console.warn('⚠️ Failed to download from S3 (may be first run):', error)
@@ -35,7 +35,7 @@ export async function downloadFromS3(): Promise<void> {
  */
 export async function uploadToS3(): Promise<void> {
   console.log('📤 Uploading data to S3...')
-  execSync('./sync-s3.sh upload', { stdio: 'inherit', cwd: DATA_DIR })
+  execSync('tsx src/sync-s3.ts upload', { stdio: 'inherit', cwd: DATA_DIR })
   console.log('✅ Upload complete')
 }
 

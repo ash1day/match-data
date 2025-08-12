@@ -99,7 +99,7 @@ async function collectMatchesFromRegion(
 
   // マッチ詳細を取得（パッチごとに処理）
   const matchDetailWithParams = async (matchId: string, rg: typeof regionGroup) => {
-    return api.Match.getById(matchId, rg)
+    return api.Match.getByMatchId(matchId, rg)
   }
 
   console.log(`  Fetching match details...`)
