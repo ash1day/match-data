@@ -118,7 +118,10 @@ export async function saveMatchData(
   
   // JSONをテーブルに読み込み
   const jsonPath = path.join(dir, 'temp_matches.json')
-  fs.writeFileSync(jsonPath, JSON.stringify(allMatches))
+  // BigIntを文字列に変換してからJSON化
+  fs.writeFileSync(jsonPath, JSON.stringify(allMatches, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ))
   
   await db.run(`
     CREATE TABLE matches AS 
@@ -167,7 +170,9 @@ export async function saveMatchIndex(
   const allIds = Array.from(new Set([...existingIds, ...matchIds]))
   
   // 圧縮して保存
-  const compressed = zlib.gzipSync(JSON.stringify(allIds))
+  const compressed = zlib.gzipSync(JSON.stringify(allIds, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ))
   fs.writeFileSync(indexPath, compressed)
   
   console.log(`  ✅ Saved ${allIds.length} match IDs to index`)
@@ -212,7 +217,9 @@ export async function savePlayerData(players: any[], region: string): Promise<vo
   fs.mkdirSync(dir, { recursive: true })
 
   const filePath = path.join(dir, 'players.json.gz')
-  const compressed = zlib.gzipSync(JSON.stringify(players))
+  const compressed = zlib.gzipSync(JSON.stringify(players, (key, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  ))
   fs.writeFileSync(filePath, compressed)
   
   console.log(`  ✅ Saved ${players.length} players to ${filePath}`)
