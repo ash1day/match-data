@@ -52,7 +52,7 @@ jobs:
 
       - name: Collect match data (incremental)
         run: |
-          ARGS=""
+          ARGS="--skip-download"
           if [ -n "${{ github.event.inputs.max_matches }}" ]; then
             ARGS="$ARGS --max-matches=${{ github.event.inputs.max_matches }}"
           fi
