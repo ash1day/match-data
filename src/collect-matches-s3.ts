@@ -14,7 +14,8 @@ import {
   initDataStore,
   finalizeDataStore 
 } from './s3-match-store'
-import { formatGameVersionToPatch } from './utils/match-utils'
+import { gameVersionToPatchDir } from './utils/patch-utils'
+import { updateMetadata, aggregateMetadata } from './metadata'
 import { Players } from './common/players'
 import { MATCH_LIST_API_RATE_LIMIT, MATCH_DETAIL_API_RATE_LIMIT } from './common/constants'
 
@@ -114,12 +115,16 @@ async function collectMatchesFromRegion(
   // パッチごとにグループ化
   const matchesByPatch = new Map<string, MatchTFTDTO[]>()
   for (const match of matches) {
-    const patchNum = formatGameVersionToPatch(match.info.game_version)
-    const patch = patchNum.toString()
-    if (!matchesByPatch.has(patch)) {
-      matchesByPatch.set(patch, [])
+    try {
+      const patch = gameVersionToPatchDir(match.info.game_version)
+      if (!matchesByPatch.has(patch)) {
+        matchesByPatch.set(patch, [])
+      }
+      matchesByPatch.get(patch)!.push(match)
+    } catch (error) {
+      console.warn('  Failed to parse patch from game version:', match.info.game_version, error)
+      continue
     }
-    matchesByPatch.get(patch)!.push(match)
   }
 
   // パッチごとに保存（新規マッチのみ）
@@ -159,6 +164,7 @@ export async function collectMatchesFromAllRegions(
 ): Promise<void> {
   const api = createTftApi()
   const players = new Players()
+  const patchStats = new Map<string, Map<string, number>>()
 
   try {
     // S3から既存データをダウンロード（スキップオプションあり）
@@ -172,11 +178,17 @@ export async function collectMatchesFromAllRegions(
     for (const region of regions) {
       try {
         await collectMatchesFromRegion(api, players, region, tiers, maxMatches)
+        
+        // TODO: 実際のマッチ数を集計してpatchStatsに追加
+        // この実装は後で改善が必要
       } catch (error) {
         console.error(`❌ Error collecting from ${region}:`, error)
         // エラーが発生してもほかのリージョンは続行
       }
     }
+
+    // メタデータを更新（現時点では集計機能は未実装）
+    // await aggregateMetadata(patchStats)
 
     // S3にアップロード
     console.log('\n📤 Uploading all data to S3...')
