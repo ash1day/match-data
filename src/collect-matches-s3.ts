@@ -214,7 +214,8 @@ export async function collectMatchesFromAllRegions(
   regions: Region[],
   tiers: Tier[],
   maxMatches?: number,
-  skipDownload?: boolean
+  skipDownload?: boolean,
+  skipUpload?: boolean
 ): Promise<void> {
   const api = createTftApi()
   const players = new Players()
@@ -244,9 +245,13 @@ export async function collectMatchesFromAllRegions(
     // メタデータを更新（現時点では集計機能は未実装）
     // await aggregateMetadata(patchStats)
 
-    // S3にアップロード
-    console.log('\n📤 Uploading all data to S3...')
-    await finalizeDataStore()
+    // S3にアップロード（スキップオプションあり）
+    if (!skipUpload) {
+      console.log('\n📤 Uploading all data to S3...')
+      await finalizeDataStore()
+    } else {
+      console.log('⚠️ Skipping S3 upload')
+    }
     
   } catch (error) {
     console.error('❌ Fatal error during collection:', error)

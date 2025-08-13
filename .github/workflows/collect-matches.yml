@@ -52,7 +52,7 @@ jobs:
 
       - name: Collect match data (incremental)
         run: |
-          ARGS="--skip-download"
+          ARGS="--skip-download --skip-upload"
           if [ -n "${{ github.event.inputs.max_matches }}" ]; then
             ARGS="$ARGS --max-matches=${{ github.event.inputs.max_matches }}"
           fi
@@ -64,6 +64,11 @@ jobs:
           yarn collect-matches $ARGS
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+
+      - name: Upload to S3
+        run: |
+          echo "📤 Uploading updated data to S3..."
+          yarn tsx src/sync-s3.ts upload
 
       - name: Show summary
         run: |

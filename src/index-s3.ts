@@ -5,9 +5,9 @@ import { Regions, Tiers, type Region } from './common/types'
 /**
  * コマンドライン引数をパース
  */
-function parseArgs(): { maxMatches?: number; regions?: Region[]; skipDownload?: boolean } {
+function parseArgs(): { maxMatches?: number; regions?: Region[]; skipDownload?: boolean; skipUpload?: boolean } {
   const args = process.argv.slice(2)
-  const result: { maxMatches?: number; regions?: Region[]; skipDownload?: boolean } = {}
+  const result: { maxMatches?: number; regions?: Region[]; skipDownload?: boolean; skipUpload?: boolean } = {}
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -18,6 +18,8 @@ function parseArgs(): { maxMatches?: number; regions?: Region[]; skipDownload?: 
       result.regions = regionList.map((r) => r.trim() as Region)
     } else if (arg === '--skip-download') {
       result.skipDownload = true
+    } else if (arg === '--skip-upload') {
+      result.skipUpload = true
     }
   }
 
@@ -61,8 +63,11 @@ export async function fetchRiotDataS3(): Promise<void> {
   if (args.skipDownload) {
     console.log('⚠️ Skipping S3 download (--skip-download flag)')
   }
+  if (args.skipUpload) {
+    console.log('⚠️ Skipping S3 upload (--skip-upload flag)')
+  }
 
-  await collectMatchesFromAllRegions(regions, tiers, maxMatches, args.skipDownload)
+  await collectMatchesFromAllRegions(regions, tiers, maxMatches, args.skipDownload, args.skipUpload)
 
   console.log('\n✅ All data collection complete!')
 }
