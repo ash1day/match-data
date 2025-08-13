@@ -1,11 +1,12 @@
 #!/usr/bin/env tsx
 import 'dotenv/config'
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import * as fs from 'fs'
 import * as path from 'path'
 import { createReadStream, createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
+import { loadPatchConfig, filterFilesByPatch } from './utils/patch-filter'
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'
@@ -105,8 +106,18 @@ async function main() {
     switch (command) {
       case 'download': {
         console.log('📥 Downloading from S3...')
-        const files = await listFiles()
-        console.log(`Found ${files.length} files in S3`)
+        const patchConfig = loadPatchConfig()
+        let files = await listFiles()
+        
+        // パッチフィルタリング
+        if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
+          console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
+          const beforeCount = files.length
+          files = filterFilesByPatch(files, patchConfig)
+          console.log(`Filtered from ${beforeCount} to ${files.length} files for patch ${patchConfig.targetPatch}`)
+        } else {
+          console.log(`Found ${files.length} files in S3 (no filtering)`)
+        }
 
         for (const key of files) {
           if (key.endsWith('.parquet') || key.endsWith('.json.gz')) {
@@ -121,8 +132,18 @@ async function main() {
 
       case 'upload': {
         console.log('📤 Uploading to S3...')
-        const localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-        console.log(`Found ${localFiles.length} local files to upload`)
+        const patchConfig = loadPatchConfig()
+        let localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
+        
+        // パッチフィルタリング
+        if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
+          console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
+          const beforeCount = localFiles.length
+          localFiles = filterFilesByPatch(localFiles, patchConfig)
+          console.log(`Filtered from ${beforeCount} to ${localFiles.length} files for patch ${patchConfig.targetPatch}`)
+        } else {
+          console.log(`Found ${localFiles.length} local files to upload (no filtering)`)
+        }
 
         for (const file of localFiles) {
           const localPath = path.join(process.cwd(), file)

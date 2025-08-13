@@ -18,6 +18,12 @@ import { gameVersionToPatchDir } from './utils/patch-utils'
 import { updateMetadata, aggregateMetadata } from './metadata'
 import { Players } from './common/players'
 import { MATCH_LIST_API_RATE_LIMIT, MATCH_DETAIL_API_RATE_LIMIT } from './common/constants'
+import { loadPatchConfig } from './utils/patch-filter'
+
+const patchConfig = loadPatchConfig()
+if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
+  console.log(`  📋 Loaded patch config: Target patch ${patchConfig.targetPatch}`)
+}
 
 /**
  * Playersからプレイヤー一覧を取得
@@ -114,9 +120,14 @@ async function collectMatchesFromRegion(
 
   // パッチごとにグループ化
   const matchesByPatch = new Map<string, MatchTFTDTO[]>()
+  const allPatches = new Set<string>()
+  
+  // まず全てのパッチを収集
   for (const match of matches) {
     try {
       const patch = gameVersionToPatchDir(match.info.game_version)
+      allPatches.add(patch)
+      
       if (!matchesByPatch.has(patch)) {
         matchesByPatch.set(patch, [])
       }
@@ -124,6 +135,49 @@ async function collectMatchesFromRegion(
     } catch (error) {
       console.warn('  Failed to parse patch from game version:', match.info.game_version, error)
       continue
+    }
+  }
+  
+  // パッチのフィルタリング
+  if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
+    // 設定ファイルから指定されたパッチのみを処理
+    const targetPatch = patchConfig.targetPatch
+    const otherPatches = Array.from(allPatches).filter(p => p !== targetPatch)
+    
+    if (matchesByPatch.has(targetPatch)) {
+      console.log(`  📌 Processing target patch: ${targetPatch}`)
+      if (otherPatches.length > 0) {
+        console.log(`  ⚠️ Skipping other patches: ${otherPatches.sort().join(', ')}`)
+        for (const patch of otherPatches) {
+          matchesByPatch.delete(patch)
+        }
+      }
+    } else {
+      console.log(`  ⚠️ Target patch ${targetPatch} not found in matches`)
+      console.log(`  Available patches: ${Array.from(allPatches).sort().join(', ')}`)
+    }
+  } else if (patchConfig.collectOnlyLatest) {
+    // 設定ファイルにパッチが指定されていない場合は動的に判定
+    const sortedPatches = Array.from(allPatches).sort((a, b) => {
+      const [aMajor, aMinor] = a.split('.').map(Number)
+      const [bMajor, bMinor] = b.split('.').map(Number)
+      if (bMajor !== aMajor) return bMajor - aMajor
+      return bMinor - aMinor
+    })
+    
+    const latestPatch = sortedPatches[0]
+    
+    if (latestPatch) {
+      console.log(`  📌 Auto-detected latest patch: ${latestPatch}`)
+      
+      // 最新パッチ以外を削除
+      const oldPatches = sortedPatches.slice(1)
+      if (oldPatches.length > 0) {
+        console.log(`  ⚠️ Skipping old patches: ${oldPatches.join(', ')}`)
+        for (const oldPatch of oldPatches) {
+          matchesByPatch.delete(oldPatch)
+        }
+      }
     }
   }
 

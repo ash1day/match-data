@@ -1,0 +1,5 @@
+{
+  "targetPatch": "15.16",
+  "collectOnlyLatest": true,
+  "comment": "Update targetPatch when new patch is released"
+}
