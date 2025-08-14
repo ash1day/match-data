@@ -81,8 +81,8 @@ export class Players {
       return
     }
 
-    // Gitリポジトリ初期化
-    await initDataRepo()
+    // データストア初期化
+    await initDataStore()
 
     // オブジェクト形式から配列形式に変換
     const playerArray = Object.values(dataToSave.players)
