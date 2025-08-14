@@ -123,9 +123,18 @@ export async function saveMatchData(
     typeof value === 'bigint' ? value.toString() : value
   ))
   
+  // read_json with explicit JSON type to preserve structure
   await db.run(`
     CREATE TABLE matches AS 
-    SELECT * FROM read_json_auto('${jsonPath}')
+    SELECT 
+      metadata,
+      info
+    FROM read_json('${jsonPath}', 
+      columns = {
+        metadata: 'JSON',
+        info: 'JSON'
+      }
+    )
   `)
   
   // Parquetとして保存
