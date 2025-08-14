@@ -5,7 +5,8 @@
 
 import { S3Client, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { aggregateMetadata } from './metadata'
-import 'dotenv/config'
+import * as dotenv from 'dotenv'
+dotenv.config({ override: true })
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'

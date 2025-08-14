@@ -1,4 +1,5 @@
-import 'dotenv/config'
+import * as dotenv from 'dotenv'
+dotenv.config({ override: true })
 import { createTftApi } from './utils/riot-api-utils'
 
 import { Players } from './common/players'
@@ -27,7 +28,11 @@ export async function collectPlayersData(): Promise<void> {
     Regions.VIETNAM
   ]
 
-  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER]
+  const tiers = [
+    Tiers.CHALLENGER, 
+    Tiers.GRANDMASTER, 
+    Tiers.MASTER
+  ]
 
   console.log('Starting player data collection (Git version)...')
   console.log(`Target regions: ${regions.join(', ')}`)

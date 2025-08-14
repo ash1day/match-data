@@ -33,7 +33,7 @@ export class Players {
       // Gitリポジトリから読み込み
       const playerArray = await loadPlayerData(region)
 
-      if (playerArray.length === 0) {
+      if (!playerArray || playerArray.length === 0) {
         const emptyCache: PlayersData = {
           players: {},
           puuidIndex: {},
@@ -80,9 +80,6 @@ export class Players {
       console.error(`No data to save for region ${region}`)
       return
     }
-
-    // データストア初期化
-    await initDataStore()
 
     // オブジェクト形式から配列形式に変換
     const playerArray = Object.values(dataToSave.players)

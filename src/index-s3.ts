@@ -1,4 +1,5 @@
-import 'dotenv/config'
+import * as dotenv from 'dotenv'
+dotenv.config({ override: true })
 import { collectMatchesFromAllRegions } from './collect-matches-s3'
 import { Regions, Tiers, type Region } from './common/types'
 

@@ -1,5 +1,5 @@
 import type { TftApi } from 'twisted'
-import { Regions as TwistedRegions } from 'twisted/dist/constants'
+import { Regions as TwistedRegions, Divisions } from 'twisted/dist/constants'
 
 import type { Region, Tier } from './common/types'
 import { Tiers } from './common/types'
@@ -25,6 +25,44 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
   } else if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
     return league.response.entries
+  } else if (tier === Tiers.DIAMOND || tier === Tiers.PLATINUM || tier === Tiers.GOLD || tier === Tiers.SILVER || tier === Tiers.BRONZE || tier === Tiers.IRON) {
+    // DIAMOND以下のティアはgetByTierDivisionを使用
+    // 各ディビジョン(I, II, III, IV)を取得して結合
+    const allEntries: any[] = []
+    const divisions = [Divisions.I, Divisions.II, Divisions.III, Divisions.IV]
+    
+    for (const division of divisions) {
+      console.log(`    Fetching ${tier} ${division} league entries...`)
+      let page = 1
+      let hasMore = true
+      
+      while (hasMore) {
+        try {
+          const response = await api.League.getByTierDivision(
+            twistedRegion,
+            tier as any, // Tiers enum from twisted
+            division,
+            page
+          )
+          
+          if (response.response.length > 0) {
+            allEntries.push(...response.response)
+            page++
+            // Riot APIは通常1ページあたり205エントリーを返す
+            if (response.response.length < 200) {
+              hasMore = false
+            }
+          } else {
+            hasMore = false
+          }
+        } catch (error) {
+          console.log(`      No more pages for ${tier} ${division} (page ${page})`)
+          hasMore = false
+        }
+      }
+    }
+    
+    return allEntries
   }
 
   return []
@@ -36,9 +74,10 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
 async function fetchPlayerDetails(_api: TftApi, leagueEntry: any, _region: Region, tier: Tier): Promise<PlayerInfo> {
   // League entryにPUUIDが含まれているため、Summoner APIは不要
   // Account APIはアクセス権限がないため、riotTagは空文字列のまま
+  // 注意: League APIはsummonerIdを返さないため、puuidをsummonerIdとして使用
 
   return {
-    summonerId: leagueEntry.summonerId,
+    summonerId: leagueEntry.puuid,  // League APIにはsummonerIdがないため、puuidを使用
     summonerName: '', // League entryには名前が含まれていないため空文字列
     puuid: leagueEntry.puuid,
     riotTag: '', // Account APIアクセス権限なし

@@ -1,5 +1,6 @@
 #!/usr/bin/env tsx
-import 'dotenv/config'
+import * as dotenv from 'dotenv'
+dotenv.config({ override: true })
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { isTargetPatchFile } from './utils/patch-filter'
 
