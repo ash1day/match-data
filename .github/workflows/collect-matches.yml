@@ -59,7 +59,7 @@ jobs:
           if [ "${{ github.event.inputs.regions }}" != "all" ] && [ -n "${{ github.event.inputs.regions }}" ]; then
             ARGS="$ARGS --regions=${{ github.event.inputs.regions }}"
           fi
-          
+
           echo "🎮 Collecting new matches from Riot API..."
           yarn collect-matches $ARGS
         env:

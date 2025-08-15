@@ -1,7 +1,13 @@
 #!/usr/bin/env tsx
 import * as dotenv from 'dotenv'
 dotenv.config({ override: true })
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand
+} from '@aws-sdk/client-s3'
 import * as fs from 'fs'
 import * as path from 'path'
 import { createReadStream, createWriteStream } from 'fs'
@@ -65,7 +71,7 @@ async function listFiles(subPrefix?: string): Promise<string[]> {
   })
 
   const response = await s3Client.send(command)
-  return response.Contents?.map(item => item.Key!.replace(PREFIX, '')).filter(Boolean) || []
+  return response.Contents?.map((item) => item.Key!.replace(PREFIX, '')).filter(Boolean) || []
 }
 
 /**
@@ -73,26 +79,28 @@ async function listFiles(subPrefix?: string): Promise<string[]> {
  */
 function findLocalFiles(dir: string, pattern: RegExp): string[] {
   const files: string[] = []
-  
+
   function traverse(currentDir: string) {
     const entries = fs.readdirSync(currentDir, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       const fullPath = path.join(currentDir, entry.name)
       const relativePath = path.relative(dir, fullPath)
-      
+
       // node_modules、.git、match-dataディレクトリはスキップ
-      if (entry.isDirectory() && 
-          !entry.name.startsWith('.') && 
-          entry.name !== 'node_modules' &&
-          entry.name !== 'match-data') {
+      if (
+        entry.isDirectory() &&
+        !entry.name.startsWith('.') &&
+        entry.name !== 'node_modules' &&
+        entry.name !== 'match-data'
+      ) {
         traverse(fullPath)
       } else if (entry.isFile() && pattern.test(entry.name)) {
         files.push(relativePath)
       }
     }
   }
-  
+
   traverse(dir)
   return files
 }
@@ -109,7 +117,7 @@ async function main() {
         console.log('📥 Downloading from S3...')
         const patchConfig = loadPatchConfig()
         let files = await listFiles()
-        
+
         // パッチフィルタリング
         if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
           console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
@@ -135,7 +143,7 @@ async function main() {
         console.log('📤 Uploading to S3...')
         const patchConfig = loadPatchConfig()
         let localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-        
+
         // パッチフィルタリング
         if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
           console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
@@ -158,18 +166,18 @@ async function main() {
       case 'status': {
         console.log('📊 S3 Status')
         console.log('============')
-        
+
         const s3Files = await listFiles()
         const localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-        
+
         console.log(`S3 files: ${s3Files.length}`)
         console.log(`Local files: ${localFiles.length}`)
-        
+
         console.log('\nRecent S3 files:')
-        s3Files.slice(-10).forEach(f => console.log(`  - ${f}`))
-        
+        s3Files.slice(-10).forEach((f) => console.log(`  - ${f}`))
+
         console.log('\nRecent local files:')
-        localFiles.slice(-10).forEach(f => console.log(`  - ${f}`))
+        localFiles.slice(-10).forEach((f) => console.log(`  - ${f}`))
         break
       }
 

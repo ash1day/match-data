@@ -13,8 +13,12 @@ export async function collectPlayersData(): Promise<void> {
   const api = createTftApi()
   const players = new Players()
 
+  // コマンドライン引数の処理
+  const args = process.argv.slice(2)
+  const regionsArg = args.find((arg) => arg.startsWith('--regions='))
+
   // 収集対象のリージョンとティア
-  const regions = [
+  let regions = [
     Regions.JAPAN,
     Regions.KOREA,
     Regions.EU_WEST,
@@ -28,11 +32,14 @@ export async function collectPlayersData(): Promise<void> {
     Regions.VIETNAM
   ]
 
-  const tiers = [
-    Tiers.CHALLENGER, 
-    Tiers.GRANDMASTER, 
-    Tiers.MASTER
-  ]
+  // --regions 引数が指定された場合、そのリージョンのみを使用
+  if (regionsArg) {
+    const regionsList = regionsArg.split('=')[1].split(',')
+    regions = regionsList.map((r) => r.trim() as Regions)
+    console.log(`Using specified regions: ${regions.join(', ')}`)
+  }
+
+  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER, Tiers.DIAMOND, Tiers.PLATINUM]
 
   console.log('Starting player data collection (Git version)...')
   console.log(`Target regions: ${regions.join(', ')}`)

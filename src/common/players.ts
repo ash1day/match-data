@@ -160,6 +160,7 @@ export class Players {
 
     data.lastUpdated = new Date().toISOString()
     this.cache.set(region, data)
+    await this.savePlayers(region, data)
   }
 
   getPlayerCount(region: string): number {

@@ -29,6 +29,7 @@ s3://tftips/match-data/
 ## Setup
 
 ### Prerequisites
+
 - Node.js 18+
 - AWS credentials with access to `tftips` S3 bucket
 - Riot API key
@@ -47,6 +48,7 @@ cp .env.example .env
 ## Data Collection Workflow
 
 The collection process follows this flow:
+
 1. **Download** existing data from S3
 2. **Fetch** new data from Riot API (incremental/diff only)
 3. **Upload** merged data back to S3

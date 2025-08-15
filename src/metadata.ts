@@ -22,10 +22,13 @@ interface CollectionMetadata {
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'ap-northeast-1',
-  credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY ? {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  } : undefined
+  credentials:
+    process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+      ? {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        }
+      : undefined
 })
 
 /**
@@ -37,10 +40,10 @@ export async function getMetadata(): Promise<CollectionMetadata | null> {
       Bucket: BUCKET_NAME,
       Key: METADATA_KEY
     })
-    
+
     const response = await s3Client.send(command)
     const body = await response.Body?.transformToString()
-    
+
     if (body) {
       return JSON.parse(body)
     }
@@ -51,21 +54,17 @@ export async function getMetadata(): Promise<CollectionMetadata | null> {
       console.error('Failed to get metadata:', error)
     }
   }
-  
+
   return null
 }
 
 /**
  * メタデータを更新
  */
-export async function updateMetadata(
-  patch: string,
-  region: string,
-  matchCount: number
-): Promise<void> {
+export async function updateMetadata(patch: string, region: string, matchCount: number): Promise<void> {
   // 既存のメタデータを取得
   let metadata = await getMetadata()
-  
+
   if (!metadata) {
     metadata = {
       lastUpdated: new Date().toISOString(),
@@ -74,24 +73,24 @@ export async function updateMetadata(
       totalMatches: 0
     }
   }
-  
+
   // パッチ情報を更新
   if (!metadata.patches[patch]) {
     metadata.patches[patch] = { regions: {} }
   }
-  
+
   if (!metadata.patches[patch].regions[region]) {
     metadata.patches[patch].regions[region] = {
       matchCount: 0,
       lastUpdated: new Date().toISOString()
     }
   }
-  
+
   // マッチ数を更新
   const oldCount = metadata.patches[patch].regions[region].matchCount
   metadata.patches[patch].regions[region].matchCount = matchCount
   metadata.patches[patch].regions[region].lastUpdated = new Date().toISOString()
-  
+
   // 合計マッチ数を再計算
   metadata.totalMatches = 0
   for (const patchData of Object.values(metadata.patches)) {
@@ -99,7 +98,7 @@ export async function updateMetadata(
       metadata.totalMatches += regionData.matchCount
     }
   }
-  
+
   // 最新パッチを判定（最も新しいパッチ番号）
   const allPatches = Object.keys(metadata.patches).sort((a, b) => {
     const aNum = parseFloat(a.replace('.', ''))
@@ -107,9 +106,9 @@ export async function updateMetadata(
     return bNum - aNum
   })
   metadata.latestPatch = allPatches[0] || patch
-  
+
   metadata.lastUpdated = new Date().toISOString()
-  
+
   // S3に保存
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -117,7 +116,7 @@ export async function updateMetadata(
     Body: JSON.stringify(metadata, null, 2),
     ContentType: 'application/json'
   })
-  
+
   await s3Client.send(command)
   console.log(`✅ Updated metadata: ${patch}/${region} - ${matchCount} matches`)
 }
@@ -125,20 +124,18 @@ export async function updateMetadata(
 /**
  * すべてのメタデータを集計して更新
  */
-export async function aggregateMetadata(
-  patchStats: Map<string, Map<string, number>>
-): Promise<void> {
+export async function aggregateMetadata(patchStats: Map<string, Map<string, number>>): Promise<void> {
   const metadata: CollectionMetadata = {
     lastUpdated: new Date().toISOString(),
     latestPatch: '',
     patches: {},
     totalMatches: 0
   }
-  
+
   // パッチごとに集計
   for (const [patch, regions] of patchStats) {
     metadata.patches[patch] = { regions: {} }
-    
+
     for (const [region, count] of regions) {
       metadata.patches[patch].regions[region] = {
         matchCount: count,
@@ -147,7 +144,7 @@ export async function aggregateMetadata(
       metadata.totalMatches += count
     }
   }
-  
+
   // 最新パッチを判定
   const allPatches = Array.from(patchStats.keys()).sort((a, b) => {
     const aNum = parseFloat(a.replace('.', ''))
@@ -155,7 +152,7 @@ export async function aggregateMetadata(
     return bNum - aNum
   })
   metadata.latestPatch = allPatches[0] || ''
-  
+
   // S3に保存
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -163,9 +160,9 @@ export async function aggregateMetadata(
     Body: JSON.stringify(metadata, null, 2),
     ContentType: 'application/json'
   })
-  
+
   await s3Client.send(command)
-  
+
   console.log('\n📊 Collection Summary:')
   console.log(`  Latest patch: ${metadata.latestPatch}`)
   console.log(`  Total matches: ${metadata.totalMatches}`)

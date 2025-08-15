@@ -31,18 +31,18 @@ export function isTargetPatchFile(filePath: string, targetPatch: string): boolea
   if (filePath.includes('players.json.gz')) {
     return true
   }
-  
+
   // パスを分割
   const parts = filePath.split('/')
-  
+
   // 最低2階層必要 (例: JP1/15.16)
   if (parts.length < 2) {
     return false
   }
-  
+
   // 2番目の部分がパッチディレクトリ
   const patchDir = parts[1]
-  
+
   // 完全一致で比較（15.16 === 15.16）
   return patchDir === targetPatch
 }
@@ -57,6 +57,6 @@ export function filterFilesByPatch(files: string[], config: PatchConfig): string
   if (!config.collectOnlyLatest || !config.targetPatch) {
     return files
   }
-  
-  return files.filter(file => isTargetPatchFile(file, config.targetPatch))
+
+  return files.filter((file) => isTargetPatchFile(file, config.targetPatch))
 }

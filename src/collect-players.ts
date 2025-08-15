@@ -25,17 +25,24 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
   } else if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
     return league.response.entries
-  } else if (tier === Tiers.DIAMOND || tier === Tiers.PLATINUM || tier === Tiers.GOLD || tier === Tiers.SILVER || tier === Tiers.BRONZE || tier === Tiers.IRON) {
+  } else if (
+    tier === Tiers.DIAMOND ||
+    tier === Tiers.PLATINUM ||
+    tier === Tiers.GOLD ||
+    tier === Tiers.SILVER ||
+    tier === Tiers.BRONZE ||
+    tier === Tiers.IRON
+  ) {
     // DIAMOND以下のティアはgetByTierDivisionを使用
     // 各ディビジョン(I, II, III, IV)を取得して結合
     const allEntries: any[] = []
     const divisions = [Divisions.I, Divisions.II, Divisions.III, Divisions.IV]
-    
+
     for (const division of divisions) {
       console.log(`    Fetching ${tier} ${division} league entries...`)
       let page = 1
       let hasMore = true
-      
+
       while (hasMore) {
         try {
           const response = await api.League.getByTierDivision(
@@ -44,7 +51,7 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
             division,
             page
           )
-          
+
           if (response.response.length > 0) {
             allEntries.push(...response.response)
             page++
@@ -61,7 +68,7 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
         }
       }
     }
-    
+
     return allEntries
   }
 
@@ -77,7 +84,7 @@ async function fetchPlayerDetails(_api: TftApi, leagueEntry: any, _region: Regio
   // 注意: League APIはsummonerIdを返さないため、puuidをsummonerIdとして使用
 
   return {
-    summonerId: leagueEntry.puuid,  // League APIにはsummonerIdがないため、puuidを使用
+    summonerId: leagueEntry.puuid, // League APIにはsummonerIdがないため、puuidを使用
     summonerName: '', // League entryには名前が含まれていないため空文字列
     puuid: leagueEntry.puuid,
     riotTag: '', // Account APIアクセス権限なし
@@ -112,9 +119,20 @@ async function collectPlayersFromRegion(api: TftApi, region: Region, tiers: Tier
       // 新規プレイヤーの詳細情報を取得
       // League entryから直接情報を取得できるため、API呼び出しは不要
       const missingEntries = entries.filter((entry) => missingIds.includes(entry.summonerId))
-      const playerDetails = missingEntries.map((entry) => fetchPlayerDetails(api, entry, region, tier))
 
-      allPlayers.push(...(await Promise.all(playerDetails)))
+      // バッチ処理で大量のプレイヤーを処理
+      const BATCH_SIZE = 1000
+      for (let i = 0; i < missingEntries.length; i += BATCH_SIZE) {
+        const batch = missingEntries.slice(i, i + BATCH_SIZE)
+        const playerDetails = batch.map((entry) => fetchPlayerDetails(api, entry, region, tier))
+        allPlayers.push(...(await Promise.all(playerDetails)))
+
+        if (i + BATCH_SIZE < missingEntries.length) {
+          console.log(
+            `    Processed ${Math.min(i + BATCH_SIZE, missingEntries.length)}/${missingEntries.length} players...`
+          )
+        }
+      }
     }
 
     totalPlayers += entries.length

@@ -7,13 +7,7 @@ import { DateService } from './utils/date-service'
 
 import type { Region, Tier } from './common/types'
 import { RegionToPlatform, TFT_QUEUE_ID } from './common/types'
-import { 
-  saveMatchData, 
-  saveMatchIndex, 
-  filterNewMatchIds, 
-  initDataStore,
-  finalizeDataStore 
-} from './s3-match-store'
+import { saveMatchData, saveMatchIndex, filterNewMatchIds, initDataStore, finalizeDataStore } from './s3-match-store'
 import { gameVersionToPatchDir } from './utils/patch-utils'
 import { updateMetadata, aggregateMetadata } from './metadata'
 import { Players } from './common/players'
@@ -121,13 +115,13 @@ async function collectMatchesFromRegion(
   // パッチごとにグループ化
   const matchesByPatch = new Map<string, MatchTFTDTO[]>()
   const allPatches = new Set<string>()
-  
+
   // まず全てのパッチを収集
   for (const match of matches) {
     try {
       const patch = gameVersionToPatchDir(match.info.game_version)
       allPatches.add(patch)
-      
+
       if (!matchesByPatch.has(patch)) {
         matchesByPatch.set(patch, [])
       }
@@ -137,13 +131,13 @@ async function collectMatchesFromRegion(
       continue
     }
   }
-  
+
   // パッチのフィルタリング
   if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
     // 設定ファイルから指定されたパッチのみを処理
     const targetPatch = patchConfig.targetPatch
-    const otherPatches = Array.from(allPatches).filter(p => p !== targetPatch)
-    
+    const otherPatches = Array.from(allPatches).filter((p) => p !== targetPatch)
+
     if (matchesByPatch.has(targetPatch)) {
       console.log(`  📌 Processing target patch: ${targetPatch}`)
       if (otherPatches.length > 0) {
@@ -164,12 +158,12 @@ async function collectMatchesFromRegion(
       if (bMajor !== aMajor) return bMajor - aMajor
       return bMinor - aMinor
     })
-    
+
     const latestPatch = sortedPatches[0]
-    
+
     if (latestPatch) {
       console.log(`  📌 Auto-detected latest patch: ${latestPatch}`)
-      
+
       // 最新パッチ以外を削除
       const oldPatches = sortedPatches.slice(1)
       if (oldPatches.length > 0) {
@@ -184,23 +178,23 @@ async function collectMatchesFromRegion(
   // パッチごとに保存（新規マッチのみ）
   for (const [patch, patchMatches] of matchesByPatch) {
     console.log(`\n  Processing patch ${patch}...`)
-    
+
     // 既存のマッチIDと比較して新規のみフィルタリング
-    const matchIds = patchMatches.map(m => m.metadata.match_id)
+    const matchIds = patchMatches.map((m) => m.metadata.match_id)
     const newMatchIds = await filterNewMatchIds(matchIds, region, patch)
-    
+
     if (newMatchIds.length === 0) {
       console.log(`  No new matches for ${patch}`)
       continue
     }
 
     // 新規マッチのみ取得
-    const newMatches = patchMatches.filter(m => newMatchIds.includes(m.metadata.match_id))
-    
+    const newMatches = patchMatches.filter((m) => newMatchIds.includes(m.metadata.match_id))
+
     // データを保存（既存データとマージ）
     await saveMatchData(newMatches, region, patch)
     await saveMatchIndex(newMatchIds, region, patch)
-    
+
     console.log(`  ✅ Saved ${newMatches.length} new matches for ${patch}`)
   }
 
@@ -233,7 +227,7 @@ export async function collectMatchesFromAllRegions(
     for (const region of regions) {
       try {
         await collectMatchesFromRegion(api, players, region, tiers, maxMatches)
-        
+
         // TODO: 実際のマッチ数を集計してpatchStatsに追加
         // この実装は後で改善が必要
       } catch (error) {
@@ -252,7 +246,6 @@ export async function collectMatchesFromAllRegions(
     } else {
       console.log('⚠️ Skipping S3 upload')
     }
-    
   } catch (error) {
     console.error('❌ Fatal error during collection:', error)
     throw error

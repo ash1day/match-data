@@ -33,7 +33,7 @@ async function listFiles(): Promise<string[]> {
     })
 
     const response = await s3Client.send(command)
-    
+
     if (response.Contents) {
       for (const object of response.Contents) {
         if (object.Key) {
@@ -43,7 +43,7 @@ async function listFiles(): Promise<string[]> {
         }
       }
     }
-    
+
     continuationToken = response.NextContinuationToken
   } while (continuationToken)
 
@@ -67,41 +67,41 @@ async function deleteFile(key: string): Promise<void> {
 async function cleanupS3() {
   console.log('🧹 Starting S3 cleanup...')
   console.log(`📋 Target patch: ${TARGET_PATCH}`)
-  
+
   const files = await listFiles()
   console.log(`Found ${files.length} total files in S3`)
-  
+
   // 削除対象のファイルを特定
-  const filesToDelete = files.filter(file => !isTargetPatchFile(file, TARGET_PATCH))
-  const filesToKeep = files.filter(file => isTargetPatchFile(file, TARGET_PATCH))
-  
+  const filesToDelete = files.filter((file) => !isTargetPatchFile(file, TARGET_PATCH))
+  const filesToKeep = files.filter((file) => isTargetPatchFile(file, TARGET_PATCH))
+
   console.log(`Files to keep: ${filesToKeep.length}`)
   console.log(`Files to delete: ${filesToDelete.length}`)
-  
+
   if (filesToDelete.length === 0) {
     console.log('✅ No files to delete')
     return
   }
-  
+
   // 削除対象を表示
   console.log('\n📝 Files to delete:')
-  filesToDelete.slice(0, 20).forEach(f => console.log(`  - ${f}`))
+  filesToDelete.slice(0, 20).forEach((f) => console.log(`  - ${f}`))
   if (filesToDelete.length > 20) {
     console.log(`  ... and ${filesToDelete.length - 20} more`)
   }
-  
+
   // 削除確認
   console.log('\n⚠️ This will permanently delete these files from S3!')
   console.log('Press Ctrl+C to cancel, or wait 5 seconds to proceed...')
-  await new Promise(resolve => setTimeout(resolve, 5000))
-  
+  await new Promise((resolve) => setTimeout(resolve, 5000))
+
   // 削除実行
   console.log('\n🗑️ Deleting files...')
   for (const file of filesToDelete) {
     console.log(`  Deleting ${file}...`)
     await deleteFile(file)
   }
-  
+
   console.log(`\n✅ Deleted ${filesToDelete.length} files`)
   console.log(`📊 Remaining files: ${filesToKeep.length}`)
 }
