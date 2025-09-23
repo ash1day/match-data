@@ -13,7 +13,7 @@ import * as path from 'path'
 import { createReadStream, createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-import { loadPatchConfig, filterFilesByPatch } from './utils/patch-filter'
+// パッチフィルタリング機能は削除 - 全パッチを同期
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'
@@ -115,18 +115,8 @@ async function main() {
     switch (command) {
       case 'download': {
         console.log('📥 Downloading from S3...')
-        const patchConfig = loadPatchConfig()
-        let files = await listFiles()
-
-        // パッチフィルタリング
-        if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
-          console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
-          const beforeCount = files.length
-          files = filterFilesByPatch(files, patchConfig)
-          console.log(`Filtered from ${beforeCount} to ${files.length} files for patch ${patchConfig.targetPatch}`)
-        } else {
-          console.log(`Found ${files.length} files in S3 (no filtering)`)
-        }
+        const files = await listFiles()
+        console.log(`Found ${files.length} files in S3`)
 
         for (const key of files) {
           if (key.endsWith('.parquet') || key.endsWith('.json.gz')) {
@@ -141,18 +131,8 @@ async function main() {
 
       case 'upload': {
         console.log('📤 Uploading to S3...')
-        const patchConfig = loadPatchConfig()
-        let localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-
-        // パッチフィルタリング
-        if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
-          console.log(`📋 Filtering for target patch: ${patchConfig.targetPatch}`)
-          const beforeCount = localFiles.length
-          localFiles = filterFilesByPatch(localFiles, patchConfig)
-          console.log(`Filtered from ${beforeCount} to ${localFiles.length} files for patch ${patchConfig.targetPatch}`)
-        } else {
-          console.log(`Found ${localFiles.length} local files to upload (no filtering)`)
-        }
+        const localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
+        console.log(`Found ${localFiles.length} local files to upload`)
 
         for (const file of localFiles) {
           const localPath = path.join(process.cwd(), file)

@@ -2,12 +2,14 @@
 import * as dotenv from 'dotenv'
 dotenv.config({ override: true })
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
-import { isTargetPatchFile } from './utils/patch-filter'
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'
 const REGION = 'ap-northeast-1'
-const TARGET_PATCH = '15.16'
+
+// NOTE: このスクリプトは特定のパッチをクリーンアップするためのものです
+// 必要に応じてTARGET_PATCHを変更してください
+const TARGET_PATCH = process.env.TARGET_PATCH || '15.16'
 
 // S3クライアント初期化
 const s3Client = new S3Client({
@@ -62,7 +64,31 @@ async function deleteFile(key: string): Promise<void> {
 }
 
 /**
- * 15.16以外のファイルを削除
+ * ファイルパスが対象パッチのものかチェック
+ */
+function isTargetPatchFile(filePath: string, targetPatch: string): boolean {
+  // players.json.gz は常に含める
+  if (filePath.includes('players.json.gz')) {
+    return true
+  }
+
+  // パスを分割
+  const parts = filePath.split('/')
+
+  // 最低2階層必要 (例: JP1/15.16)
+  if (parts.length < 2) {
+    return false
+  }
+
+  // 2番目の部分がパッチディレクトリ
+  const patchDir = parts[1]
+
+  // 完全一致で比較
+  return patchDir === targetPatch
+}
+
+/**
+ * 指定パッチ以外のファイルを削除
  */
 async function cleanupS3() {
   console.log('🧹 Starting S3 cleanup...')

@@ -12,12 +12,7 @@ import { gameVersionToPatchDir } from './utils/patch-utils'
 import { updateMetadata, aggregateMetadata } from './metadata'
 import { Players } from './common/players'
 import { MATCH_LIST_API_RATE_LIMIT, MATCH_DETAIL_API_RATE_LIMIT } from './common/constants'
-import { loadPatchConfig } from './utils/patch-filter'
-
-const patchConfig = loadPatchConfig()
-if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
-  console.log(`  📋 Loaded patch config: Target patch ${patchConfig.targetPatch}`)
-}
+// パッチ設定は削除 - 常に最新パッチから自動的に取得
 
 /**
  * Playersからプレイヤー一覧を取得
@@ -143,27 +138,7 @@ async function collectMatchesFromRegion(
   // 複数のパッチがある場合、最新のものから順に処理
   // マッチ数制限に達するまで複数パッチから取得可能
   console.log(`  📊 Available patches: ${sortedPatches.join(', ')}`)
-
-  if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
-    // 設定ファイルで特定のパッチが指定されている場合のみそのパッチを使用（後方互換性）
-    const targetPatch = patchConfig.targetPatch
-    const otherPatches = sortedPatches.filter((p) => p !== targetPatch)
-
-    if (matchesByPatch.has(targetPatch)) {
-      console.log(`  📌 Using specified target patch: ${targetPatch}`)
-      if (otherPatches.length > 0) {
-        console.log(`  ⚠️ Skipping other patches: ${otherPatches.join(', ')}`)
-        for (const patch of otherPatches) {
-          matchesByPatch.delete(patch)
-        }
-      }
-    } else {
-      console.log(`  ⚠️ Target patch ${targetPatch} not found, using latest patches instead`)
-    }
-  } else {
-    // デフォルト: 最新のパッチから順に取得（マッチ数制限まで）
-    console.log(`  📌 Collecting from latest patches (newest first)`)
-  }
+  console.log(`  📌 Collecting from latest patches (newest first)`)
 
   // パッチごとに保存（新規マッチのみ）
   for (const [patch, patchMatches] of matchesByPatch) {
