@@ -61,9 +61,11 @@ jobs:
           fi
 
           echo "🎮 Collecting new matches from Riot API..."
-          yarn collect-matches $ARGS
+          # Node.jsのヒープサイズを8GBに増やして実行
+          NODE_OPTIONS="--max-old-space-size=8192" yarn collect-matches $ARGS
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Upload to S3
         run: |

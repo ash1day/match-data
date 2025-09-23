@@ -1,5 +1,5 @@
 {
-  "targetPatch": "15.16",
-  "collectOnlyLatest": true,
-  "comment": "Update targetPatch when new patch is released"
+  "targetPatch": null,
+  "collectOnlyLatest": false,
+  "comment": "targetPatch: null means auto-detect latest patches. collectOnlyLatest: false means collect from all available patches sorted by newest first"
 }

@@ -132,47 +132,37 @@ async function collectMatchesFromRegion(
     }
   }
 
-  // パッチのフィルタリング
+  // パッチのフィルタリング - 常に最新のパッチから取得
+  const sortedPatches = Array.from(allPatches).sort((a, b) => {
+    const [aMajor, aMinor] = a.split('.').map(Number)
+    const [bMajor, bMinor] = b.split('.').map(Number)
+    if (bMajor !== aMajor) return bMajor - aMajor
+    return bMinor - aMinor
+  })
+
+  // 複数のパッチがある場合、最新のものから順に処理
+  // マッチ数制限に達するまで複数パッチから取得可能
+  console.log(`  📊 Available patches: ${sortedPatches.join(', ')}`)
+
   if (patchConfig.collectOnlyLatest && patchConfig.targetPatch) {
-    // 設定ファイルから指定されたパッチのみを処理
+    // 設定ファイルで特定のパッチが指定されている場合のみそのパッチを使用（後方互換性）
     const targetPatch = patchConfig.targetPatch
-    const otherPatches = Array.from(allPatches).filter((p) => p !== targetPatch)
+    const otherPatches = sortedPatches.filter((p) => p !== targetPatch)
 
     if (matchesByPatch.has(targetPatch)) {
-      console.log(`  📌 Processing target patch: ${targetPatch}`)
+      console.log(`  📌 Using specified target patch: ${targetPatch}`)
       if (otherPatches.length > 0) {
-        console.log(`  ⚠️ Skipping other patches: ${otherPatches.sort().join(', ')}`)
+        console.log(`  ⚠️ Skipping other patches: ${otherPatches.join(', ')}`)
         for (const patch of otherPatches) {
           matchesByPatch.delete(patch)
         }
       }
     } else {
-      console.log(`  ⚠️ Target patch ${targetPatch} not found in matches`)
-      console.log(`  Available patches: ${Array.from(allPatches).sort().join(', ')}`)
+      console.log(`  ⚠️ Target patch ${targetPatch} not found, using latest patches instead`)
     }
-  } else if (patchConfig.collectOnlyLatest) {
-    // 設定ファイルにパッチが指定されていない場合は動的に判定
-    const sortedPatches = Array.from(allPatches).sort((a, b) => {
-      const [aMajor, aMinor] = a.split('.').map(Number)
-      const [bMajor, bMinor] = b.split('.').map(Number)
-      if (bMajor !== aMajor) return bMajor - aMajor
-      return bMinor - aMinor
-    })
-
-    const latestPatch = sortedPatches[0]
-
-    if (latestPatch) {
-      console.log(`  📌 Auto-detected latest patch: ${latestPatch}`)
-
-      // 最新パッチ以外を削除
-      const oldPatches = sortedPatches.slice(1)
-      if (oldPatches.length > 0) {
-        console.log(`  ⚠️ Skipping old patches: ${oldPatches.join(', ')}`)
-        for (const oldPatch of oldPatches) {
-          matchesByPatch.delete(oldPatch)
-        }
-      }
-    }
+  } else {
+    // デフォルト: 最新のパッチから順に取得（マッチ数制限まで）
+    console.log(`  📌 Collecting from latest patches (newest first)`)
   }
 
   // パッチごとに保存（新規マッチのみ）

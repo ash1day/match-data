@@ -2,12 +2,13 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 export interface PatchConfig {
-  targetPatch: string
+  targetPatch: string | null
   collectOnlyLatest: boolean
 }
 
 /**
  * パッチ設定を読み込み
+ * targetPatchがnullの場合は、最新のパッチから自動的に取得
  */
 export function loadPatchConfig(): PatchConfig {
   const configPath = path.join(__dirname, '../../patch-config.json')
@@ -15,8 +16,9 @@ export function loadPatchConfig(): PatchConfig {
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     return config
   } catch (error) {
-    console.warn('⚠️ Failed to load patch-config.json, using defaults')
-    return { targetPatch: '15.16', collectOnlyLatest: true }
+    console.warn('⚠️ Failed to load patch-config.json, using defaults (collect from latest patches)')
+    // targetPatchをnullにして、最新パッチから自動的に取得するように
+    return { targetPatch: null, collectOnlyLatest: false }
   }
 }
 
