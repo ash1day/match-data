@@ -8,28 +8,24 @@ import { type PlayerInfo } from './common/players'
 import { BaseCollector } from './common/base-collector'
 
 /**
- * ティアごとの最大プレイヤー数制限
+ * ハイティア（Master/Diamond/Platinum）の合計最大プレイヤー数
+ * この上限に達したら、残りのティアはスキップされる
  */
-const TIER_LIMITS: Record<Tier, number | undefined> = {
-  [Tiers.CHALLENGER]: undefined, // 制限なし（少数のため）
-  [Tiers.GRANDMASTER]: undefined, // 制限なし（少数のため）
-  [Tiers.MASTER]: parseInt(process.env.MAX_MASTER_PLAYERS || '1000', 10), // デフォルト1000人
-  [Tiers.DIAMOND]: parseInt(process.env.MAX_DIAMOND_PLAYERS || '2000', 10), // デフォルト2000人
-  [Tiers.PLATINUM]: parseInt(process.env.MAX_PLATINUM_PLAYERS || '2000', 10),
-  [Tiers.GOLD]: undefined,
-  [Tiers.SILVER]: undefined,
-  [Tiers.BRONZE]: undefined,
-  [Tiers.IRON]: undefined
-}
+const HIGH_TIER_TOTAL_LIMIT = parseInt(process.env.MAX_HIGH_TIER_PLAYERS || '5000', 10)
 
 /**
  * 指定ティアのプレイヤー一覧を取得
+ * @param remainingLimit 残りの収集可能数（nullの場合は制限なし）
  */
-async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Promise<any[]> {
+async function fetchLeagueEntries(
+  api: TftApi,
+  region: Region,
+  tier: Tier,
+  remainingLimit: number | null
+): Promise<any[]> {
   console.log(`  Fetching ${tier} league entries...`)
-  const limit = TIER_LIMITS[tier]
-  if (limit) {
-    console.log(`    (Max limit: ${limit} players)`)
+  if (remainingLimit !== null) {
+    console.log(`    (Remaining limit: ${remainingLimit} players)`)
   }
 
   // Convert our Region type to twisted's Regions enum
@@ -44,9 +40,9 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
   } else if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
     const entries = league.response.entries
-    if (limit && entries.length > limit) {
-      console.log(`    Limiting ${entries.length} players to ${limit}`)
-      return entries.slice(0, limit)
+    if (remainingLimit !== null && entries.length > remainingLimit) {
+      console.log(`    Limiting ${entries.length} players to ${remainingLimit}`)
+      return entries.slice(0, remainingLimit)
     }
     return entries
   } else if (
@@ -81,8 +77,8 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
             page++
 
             // 制限チェック: 上限に達したら早期終了
-            if (limit && allEntries.length >= limit) {
-              console.log(`    Reached limit of ${limit} players, stopping collection`)
+            if (remainingLimit !== null && allEntries.length >= remainingLimit) {
+              console.log(`    Reached limit of ${remainingLimit} players, stopping collection`)
               hasMore = false
               break
             }
@@ -101,15 +97,15 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
       }
 
       // 制限に達したら他のディビジョンもスキップ
-      if (limit && allEntries.length >= limit) {
+      if (remainingLimit !== null && allEntries.length >= remainingLimit) {
         break
       }
     }
 
     // 制限を適用
-    if (limit && allEntries.length > limit) {
-      console.log(`    Limiting ${allEntries.length} players to ${limit}`)
-      return allEntries.slice(0, limit)
+    if (remainingLimit !== null && allEntries.length > remainingLimit) {
+      console.log(`    Limiting ${allEntries.length} players to ${remainingLimit}`)
+      return allEntries.slice(0, remainingLimit)
     }
 
     return allEntries
@@ -146,10 +142,32 @@ async function collectPlayersFromRegion(api: TftApi, region: Region, tiers: Tier
   let totalPlayers = 0
   const allPlayers: PlayerInfo[] = []
 
+  // ハイティア（Master/Diamond/Platinum）の合計収集数を追跡
+  const highTiers = [Tiers.MASTER, Tiers.DIAMOND, Tiers.PLATINUM]
+  let highTierCollected = 0
+
   // 各ティアのプレイヤーを取得
   for (const tier of tiers) {
-    const entries = await fetchLeagueEntries(api, region, tier)
+    // ハイティアの上限チェック
+    const isHighTier = highTiers.includes(tier)
+    let remainingLimit: number | null = null
+
+    if (isHighTier) {
+      remainingLimit = HIGH_TIER_TOTAL_LIMIT - highTierCollected
+      if (remainingLimit <= 0) {
+        console.log(`  Skipping ${tier} (high tier limit of ${HIGH_TIER_TOTAL_LIMIT} reached)`)
+        continue
+      }
+    }
+
+    const entries = await fetchLeagueEntries(api, region, tier, remainingLimit)
     console.log(`  Found ${entries.length} ${tier} players`)
+
+    // ハイティアの収集数を更新
+    if (isHighTier) {
+      highTierCollected += entries.length
+      console.log(`  High tier total: ${highTierCollected}/${HIGH_TIER_TOTAL_LIMIT}`)
+    }
 
     // summonerIdのリストを作成
     const summonerIds = entries.map((entry) => entry.summonerId)

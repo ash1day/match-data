@@ -51,9 +51,7 @@ jobs:
         run: yarn collect-players
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
-          MAX_MASTER_PLAYERS: 1000
-          MAX_DIAMOND_PLAYERS: 2000
-          MAX_PLATINUM_PLAYERS: 2000
+          MAX_HIGH_TIER_PLAYERS: 5000
 
       - name: Push collected data
         run: |
