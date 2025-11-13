@@ -2,8 +2,6 @@ name: Collect Players
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 11 * * *' # 毎日 日本時間 20:00 (マッチ収集の1時間前)
 
 env:
   NODE_ENV: production
@@ -51,7 +49,6 @@ jobs:
         run: yarn collect-players
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
-          MAX_HIGH_TIER_PLAYERS: 5000
 
       - name: Push collected data
         run: |

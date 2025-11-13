@@ -8,25 +8,10 @@ import { type PlayerInfo } from './common/players'
 import { BaseCollector } from './common/base-collector'
 
 /**
- * ハイティア（Master/Diamond/Platinum）の合計最大プレイヤー数
- * この上限に達したら、残りのティアはスキップされる
+ * 指定ティアのプレイヤー一覧を取得（全員）
  */
-const HIGH_TIER_TOTAL_LIMIT = parseInt(process.env.MAX_HIGH_TIER_PLAYERS || '5000', 10)
-
-/**
- * 指定ティアのプレイヤー一覧を取得
- * @param remainingLimit 残りの収集可能数（nullの場合は制限なし）
- */
-async function fetchLeagueEntries(
-  api: TftApi,
-  region: Region,
-  tier: Tier,
-  remainingLimit: number | null
-): Promise<any[]> {
+async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Promise<any[]> {
   console.log(`  Fetching ${tier} league entries...`)
-  if (remainingLimit !== null) {
-    console.log(`    (Remaining limit: ${remainingLimit} players)`)
-  }
 
   // Convert our Region type to twisted's Regions enum
   const twistedRegion = region as unknown as TwistedRegions
@@ -39,12 +24,7 @@ async function fetchLeagueEntries(
     return league.response.entries
   } else if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
-    const entries = league.response.entries
-    if (remainingLimit !== null && entries.length > remainingLimit) {
-      console.log(`    Limiting ${entries.length} players to ${remainingLimit}`)
-      return entries.slice(0, remainingLimit)
-    }
-    return entries
+    return league.response.entries
   } else if (
     tier === Tiers.DIAMOND ||
     tier === Tiers.PLATINUM ||
@@ -76,13 +56,6 @@ async function fetchLeagueEntries(
             allEntries.push(...response.response)
             page++
 
-            // 制限チェック: 上限に達したら早期終了
-            if (remainingLimit !== null && allEntries.length >= remainingLimit) {
-              console.log(`    Reached limit of ${remainingLimit} players, stopping collection`)
-              hasMore = false
-              break
-            }
-
             // Riot APIは通常1ページあたり205エントリーを返す
             if (response.response.length < 200) {
               hasMore = false
@@ -95,17 +68,6 @@ async function fetchLeagueEntries(
           hasMore = false
         }
       }
-
-      // 制限に達したら他のディビジョンもスキップ
-      if (remainingLimit !== null && allEntries.length >= remainingLimit) {
-        break
-      }
-    }
-
-    // 制限を適用
-    if (remainingLimit !== null && allEntries.length > remainingLimit) {
-      console.log(`    Limiting ${allEntries.length} players to ${remainingLimit}`)
-      return allEntries.slice(0, remainingLimit)
     }
 
     return allEntries
@@ -134,80 +96,48 @@ async function fetchPlayerDetails(_api: TftApi, leagueEntry: any, _region: Regio
 }
 
 /**
- * 単一リージョンのプレイヤー情報を収集
+ * 単一リージョンのプレイヤー情報を収集（既存データを削除して新規作成）
  */
 async function collectPlayersFromRegion(api: TftApi, region: Region, tiers: Tier[], players: Players): Promise<number> {
   console.log(`\nProcessing ${region}...`)
 
+  // 既存データをリセット
+  await players.resetPlayers(region)
+  console.log('  Reset existing player data')
+
   let totalPlayers = 0
   const allPlayers: PlayerInfo[] = []
 
-  // ハイティア（Master/Diamond/Platinum）の合計収集数を追跡
-  const highTiers = [Tiers.MASTER, Tiers.DIAMOND, Tiers.PLATINUM]
-  let highTierCollected = 0
-
   // 各ティアのプレイヤーを取得
   for (const tier of tiers) {
-    // ハイティアの上限チェック
-    const isHighTier = highTiers.includes(tier)
-    let remainingLimit: number | null = null
-
-    if (isHighTier) {
-      remainingLimit = HIGH_TIER_TOTAL_LIMIT - highTierCollected
-      if (remainingLimit <= 0) {
-        console.log(`  Skipping ${tier} (high tier limit of ${HIGH_TIER_TOTAL_LIMIT} reached)`)
-        continue
-      }
-    }
-
-    const entries = await fetchLeagueEntries(api, region, tier, remainingLimit)
+    const entries = await fetchLeagueEntries(api, region, tier)
     console.log(`  Found ${entries.length} ${tier} players`)
 
-    // ハイティアの収集数を更新
-    if (isHighTier) {
-      highTierCollected += entries.length
-      console.log(`  High tier total: ${highTierCollected}/${HIGH_TIER_TOTAL_LIMIT}`)
-    }
+    // プレイヤーの詳細情報を取得
+    // League entryから直接情報を取得できるため、API呼び出しは不要
+    // バッチ処理で大量のプレイヤーを処理
+    const BATCH_SIZE = 1000
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      const batch = entries.slice(i, i + BATCH_SIZE)
+      const playerDetails = batch.map((entry) => fetchPlayerDetails(api, entry, region, tier))
+      allPlayers.push(...(await Promise.all(playerDetails)))
 
-    // summonerIdのリストを作成
-    const summonerIds = entries.map((entry) => entry.summonerId)
-
-    // キャッシュに存在しないプレイヤーのみ取得
-    const missingIds = await players.getMissingPlayers(summonerIds, region)
-    console.log(`  ${missingIds.length} new players to fetch (${entries.length - missingIds.length} cached)`)
-
-    if (missingIds.length > 0) {
-      // 新規プレイヤーの詳細情報を取得
-      // League entryから直接情報を取得できるため、API呼び出しは不要
-      const missingEntries = entries.filter((entry) => missingIds.includes(entry.summonerId))
-
-      // バッチ処理で大量のプレイヤーを処理
-      const BATCH_SIZE = 1000
-      for (let i = 0; i < missingEntries.length; i += BATCH_SIZE) {
-        const batch = missingEntries.slice(i, i + BATCH_SIZE)
-        const playerDetails = batch.map((entry) => fetchPlayerDetails(api, entry, region, tier))
-        allPlayers.push(...(await Promise.all(playerDetails)))
-
-        if (i + BATCH_SIZE < missingEntries.length) {
-          console.log(
-            `    Processed ${Math.min(i + BATCH_SIZE, missingEntries.length)}/${missingEntries.length} players...`
-          )
-        }
+      if (i + BATCH_SIZE < entries.length) {
+        console.log(`    Processed ${Math.min(i + BATCH_SIZE, entries.length)}/${entries.length} players...`)
       }
     }
 
     totalPlayers += entries.length
   }
 
-  // 新規プレイヤーをキャッシュに追加
+  // すべてのプレイヤーを保存
   if (allPlayers.length > 0) {
     await players.upsertPlayers(allPlayers, region)
     await players.savePlayers(region)
-    console.log(`  Saved ${allPlayers.length} new players to cache`)
+    console.log(`  Saved ${allPlayers.length} players`)
   }
 
-  const totalCached = players.getPlayerCount(region)
-  console.log(`  Total players in cache: ${totalCached}`)
+  console.log(`  Total players collected: ${totalPlayers}`)
 
   return totalPlayers
 }

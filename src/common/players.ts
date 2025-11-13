@@ -167,4 +167,17 @@ export class Players {
     const data = this.cache.get(region)
     return data ? Object.keys(data.players).length : 0
   }
+
+  /**
+   * リージョンのプレイヤーデータを完全にリセット（新規作成用）
+   */
+  async resetPlayers(region: string): Promise<void> {
+    const emptyData: PlayersData = {
+      players: {},
+      puuidIndex: {},
+      lastUpdated: new Date().toISOString()
+    }
+    this.cache.set(region, emptyData)
+    await this.savePlayers(region, emptyData)
+  }
 }

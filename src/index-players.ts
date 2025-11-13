@@ -39,7 +39,7 @@ export async function collectPlayersData(): Promise<void> {
     console.log(`Using specified regions: ${regions.join(', ')}`)
   }
 
-  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER, Tiers.DIAMOND, Tiers.PLATINUM]
+  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER, Tiers.DIAMOND]
 
   console.log('Starting player data collection (Git version)...')
   console.log(`Target regions: ${regions.join(', ')}`)
