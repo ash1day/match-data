@@ -8,10 +8,29 @@ import { type PlayerInfo } from './common/players'
 import { BaseCollector } from './common/base-collector'
 
 /**
+ * ティアごとの最大プレイヤー数制限
+ */
+const TIER_LIMITS: Record<Tier, number | undefined> = {
+  [Tiers.CHALLENGER]: undefined, // 制限なし（少数のため）
+  [Tiers.GRANDMASTER]: undefined, // 制限なし（少数のため）
+  [Tiers.MASTER]: parseInt(process.env.MAX_MASTER_PLAYERS || '1000', 10), // デフォルト1000人
+  [Tiers.DIAMOND]: parseInt(process.env.MAX_DIAMOND_PLAYERS || '2000', 10), // デフォルト2000人
+  [Tiers.PLATINUM]: parseInt(process.env.MAX_PLATINUM_PLAYERS || '2000', 10),
+  [Tiers.GOLD]: undefined,
+  [Tiers.SILVER]: undefined,
+  [Tiers.BRONZE]: undefined,
+  [Tiers.IRON]: undefined
+}
+
+/**
  * 指定ティアのプレイヤー一覧を取得
  */
 async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Promise<any[]> {
   console.log(`  Fetching ${tier} league entries...`)
+  const limit = TIER_LIMITS[tier]
+  if (limit) {
+    console.log(`    (Max limit: ${limit} players)`)
+  }
 
   // Convert our Region type to twisted's Regions enum
   const twistedRegion = region as unknown as TwistedRegions
@@ -24,7 +43,12 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
     return league.response.entries
   } else if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
-    return league.response.entries
+    const entries = league.response.entries
+    if (limit && entries.length > limit) {
+      console.log(`    Limiting ${entries.length} players to ${limit}`)
+      return entries.slice(0, limit)
+    }
+    return entries
   } else if (
     tier === Tiers.DIAMOND ||
     tier === Tiers.PLATINUM ||
@@ -55,6 +79,14 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
           if (response.response.length > 0) {
             allEntries.push(...response.response)
             page++
+
+            // 制限チェック: 上限に達したら早期終了
+            if (limit && allEntries.length >= limit) {
+              console.log(`    Reached limit of ${limit} players, stopping collection`)
+              hasMore = false
+              break
+            }
+
             // Riot APIは通常1ページあたり205エントリーを返す
             if (response.response.length < 200) {
               hasMore = false
@@ -67,6 +99,17 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
           hasMore = false
         }
       }
+
+      // 制限に達したら他のディビジョンもスキップ
+      if (limit && allEntries.length >= limit) {
+        break
+      }
+    }
+
+    // 制限を適用
+    if (limit && allEntries.length > limit) {
+      console.log(`    Limiting ${allEntries.length} players to ${limit}`)
+      return allEntries.slice(0, limit)
     }
 
     return allEntries
