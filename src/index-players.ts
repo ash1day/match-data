@@ -45,13 +45,33 @@ export async function collectPlayersData(): Promise<void> {
   console.log(`Target regions: ${regions.join(', ')}`)
   console.log(`Target tiers: ${tiers.join(', ')}`)
 
-  for (const region of regions) {
-    try {
-      console.log(`\nCollecting players from ${region}...`)
-      const collected = await collectPlayers(api, players, region, tiers)
-      console.log(`Collected ${collected} new players from ${region}`)
-    } catch (error) {
-      console.error(`Failed to collect players from ${region}:`, error)
+  // 並列処理でリージョンを収集（3リージョンずつバッチ処理してAPI制限を回避）
+  const BATCH_SIZE = 3
+  for (let i = 0; i < regions.length; i += BATCH_SIZE) {
+    const batch = regions.slice(i, i + BATCH_SIZE)
+    console.log(`\nProcessing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(regions.length / BATCH_SIZE)}: ${batch.join(', ')}`)
+
+    const results = await Promise.allSettled(
+      batch.map(async (region) => {
+        try {
+          console.log(`[${region}] Starting collection...`)
+          const collected = await collectPlayers(api, players, region, tiers)
+          console.log(`[${region}] Completed: ${collected} players`)
+          return { region, collected }
+        } catch (error) {
+          console.error(`[${region}] Failed:`, error)
+          throw error
+        }
+      })
+    )
+
+    // 結果をログ出力
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        console.log(`[${result.value.region}] ✓ Success: ${result.value.collected} players`)
+      } else {
+        console.error(`[${result.reason}] ✗ Failed`)
+      }
     }
   }
 
