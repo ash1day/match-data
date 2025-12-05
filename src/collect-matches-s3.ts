@@ -2,17 +2,13 @@ import type { TftApi } from 'twisted'
 import type { MatchTFTDTO } from 'twisted/dist/models-dto'
 
 import { batchGetWithFlowRestriction, REQUEST_BUFFER_RATE, createTftApi } from './utils/riot-api-utils'
-import { sortedVersionDateNums } from './constants/version-constants'
-import { DateService } from './utils/date-service'
 
 import type { Region, Tier } from './common/types'
-import { RegionToPlatform, TFT_QUEUE_ID } from './common/types'
+import { Regions, RegionToPlatform, Tiers } from './common/types'
 import { saveMatchData, saveMatchIndex, filterNewMatchIds, initDataStore, finalizeDataStore } from './s3-match-store'
-import { gameVersionToPatchDir } from './utils/patch-utils'
-import { updateMetadata, aggregateMetadata } from './metadata'
+import { gameVersionToPatchDir, patchToNumber } from './utils/patch-utils'
 import { Players } from './common/players'
 import { MATCH_LIST_API_RATE_LIMIT, MATCH_DETAIL_API_RATE_LIMIT } from './common/constants'
-// パッチ設定は削除 - 常に最新パッチから自動的に取得
 
 /**
  * Playersからプレイヤー一覧を取得
@@ -32,23 +28,66 @@ async function getPlayersFromCache(players: Players, region: Region, tiers: Tier
 }
 
 /**
- * 最新パッチの開始日時を取得
+ * JPサーバーの上位プレイヤーから最新パッチを動的に検出
  */
-function getLatestPatchStartTime(): number {
-  const today = DateService.todayNum()
-  let latestPatchDate = sortedVersionDateNums[0]
+async function detectLatestPatch(api: TftApi, players: Players): Promise<string> {
+  console.log('\n🔍 Detecting latest patch from JP server...')
 
-  for (const dateNum of sortedVersionDateNums) {
-    if (dateNum <= today) {
-      latestPatchDate = dateNum
-      break
+  // JPサーバーから200人のプレイヤーを取得
+  const jpPlayers = await players.getAllPlayers(Regions.JAPAN)
+  const samplePuuids = jpPlayers.slice(0, 200).map((p) => p.puuid)
+  console.log(`  Sampling ${samplePuuids.length} players from JP...`)
+
+  const regionGroup = RegionToPlatform[Regions.JAPAN]
+
+  // 各プレイヤーの最新1試合を取得
+  const matchListWithParams = async (puuid: string, rg: typeof regionGroup) => {
+    return api.Match.list(puuid, rg, { count: 1 })
+  }
+
+  const matchIdArrays = await batchGetWithFlowRestriction<string[], [typeof regionGroup]>(
+    matchListWithParams,
+    samplePuuids,
+    [regionGroup],
+    MATCH_LIST_API_RATE_LIMIT,
+    0.5
+  )
+
+  const matchIds = matchIdArrays.flat().slice(0, 50) // 50試合で十分
+  console.log(`  Fetched ${matchIds.length} match IDs...`)
+
+  // マッチ詳細を取得してパッチを抽出
+  const matchDetailWithParams = async (matchId: string, rg: typeof regionGroup) => {
+    return api.Match.get(matchId, rg)
+  }
+
+  const matches = await batchGetWithFlowRestriction<MatchTFTDTO, [typeof regionGroup]>(
+    matchDetailWithParams,
+    matchIds,
+    [regionGroup],
+    MATCH_DETAIL_API_RATE_LIMIT,
+    0.5
+  )
+
+  // 最新パッチを特定
+  let latestPatch = '0.0'
+  let latestPatchNum = 0
+
+  for (const match of matches) {
+    try {
+      const patch = gameVersionToPatchDir(match.info.game_version)
+      const patchNum = patchToNumber(patch)
+      if (patchNum > latestPatchNum) {
+        latestPatchNum = patchNum
+        latestPatch = patch
+      }
+    } catch {
+      // ignore invalid version
     }
   }
 
-  const date = DateService.numToDate(latestPatchDate)
-  console.log(`  Using patch start date: ${DateService.numToDateString(latestPatchDate)} (${latestPatchDate})`)
-
-  return Math.floor(date.getTime() / 1000)
+  console.log(`  ✅ Detected latest patch: ${latestPatch}`)
+  return latestPatch
 }
 
 /**
@@ -59,9 +98,10 @@ async function collectMatchesFromRegion(
   players: Players,
   region: Region,
   tiers: Tier[],
+  latestPatch: string,
   maxMatches?: number
 ): Promise<void> {
-  console.log(`\n📍 Collecting matches from ${region}...`)
+  console.log(`\n📍 Collecting matches from ${region} (patch: ${latestPatch})...`)
 
   // PlayerCacheからプレイヤーを取得
   let uniquePuuids = await getPlayersFromCache(players, region, tiers)
@@ -73,12 +113,11 @@ async function collectMatchesFromRegion(
     console.log(`  Limited to ${playersToFetch} players due to match limit`)
   }
 
-  // マッチIDを取得（最新パッチの開始日以降）
+  // マッチIDを取得
   const regionGroup = RegionToPlatform[region]
-  const startTime = getLatestPatchStartTime()
 
   const matchListWithParams = async (puuid: string, rg: typeof regionGroup) => {
-    return api.Match.list(puuid, rg, { count: 100, startTime })
+    return api.Match.list(puuid, rg, { count: 100 })
   }
 
   console.log(`  Fetching match IDs from API...`)
@@ -107,62 +146,47 @@ async function collectMatchesFromRegion(
     REQUEST_BUFFER_RATE
   )
 
-  // パッチごとにグループ化
-  const matchesByPatch = new Map<string, MatchTFTDTO[]>()
-  const allPatches = new Set<string>()
+  // 最新パッチのマッチのみフィルタリング
+  const latestPatchMatches: MatchTFTDTO[] = []
 
-  // まず全てのパッチを収集
   for (const match of matches) {
     try {
       const patch = gameVersionToPatchDir(match.info.game_version)
-      allPatches.add(patch)
-
-      if (!matchesByPatch.has(patch)) {
-        matchesByPatch.set(patch, [])
+      if (patch === latestPatch) {
+        latestPatchMatches.push(match)
       }
-      matchesByPatch.get(patch)!.push(match)
     } catch (error) {
       console.warn('  Failed to parse patch from game version:', match.info.game_version, error)
       continue
     }
   }
 
-  // パッチのフィルタリング - 常に最新のパッチから取得
-  const sortedPatches = Array.from(allPatches).sort((a, b) => {
-    const [aMajor, aMinor] = a.split('.').map(Number)
-    const [bMajor, bMinor] = b.split('.').map(Number)
-    if (bMajor !== aMajor) return bMajor - aMajor
-    return bMinor - aMinor
-  })
+  console.log(`  📊 Found ${latestPatchMatches.length} matches for patch ${latestPatch} (${matches.length} total fetched)`)
 
-  // 複数のパッチがある場合、最新のものから順に処理
-  // マッチ数制限に達するまで複数パッチから取得可能
-  console.log(`  📊 Available patches: ${sortedPatches.join(', ')}`)
-  console.log(`  📌 Collecting from latest patches (newest first)`)
-
-  // パッチごとに保存（新規マッチのみ）
-  for (const [patch, patchMatches] of matchesByPatch) {
-    console.log(`\n  Processing patch ${patch}...`)
-
-    // 既存のマッチIDと比較して新規のみフィルタリング
-    const matchIds = patchMatches.map((m) => m.metadata.match_id)
-    const newMatchIds = await filterNewMatchIds(matchIds, region, patch)
-
-    if (newMatchIds.length === 0) {
-      console.log(`  No new matches for ${patch}`)
-      continue
-    }
-
-    // 新規マッチのみ取得
-    const newMatches = patchMatches.filter((m) => newMatchIds.includes(m.metadata.match_id))
-
-    // データを保存（既存データとマージ）
-    await saveMatchData(newMatches, region, patch)
-    await saveMatchIndex(newMatchIds, region, patch)
-
-    console.log(`  ✅ Saved ${newMatches.length} new matches for ${patch}`)
+  if (latestPatchMatches.length === 0) {
+    console.log(`  ⚠️ No matches found for latest patch ${latestPatch}`)
+    console.log(`✅ Completed ${region}`)
+    return
   }
 
+  // 既存のマッチIDと比較して新規のみフィルタリング
+  const matchIds = latestPatchMatches.map((m) => m.metadata.match_id)
+  const newMatchIds = await filterNewMatchIds(matchIds, region, latestPatch)
+
+  if (newMatchIds.length === 0) {
+    console.log(`  No new matches for ${latestPatch}`)
+    console.log(`✅ Completed ${region}`)
+    return
+  }
+
+  // 新規マッチのみ取得
+  const newMatches = latestPatchMatches.filter((m) => newMatchIds.includes(m.metadata.match_id))
+
+  // データを保存（既存データとマージ）
+  await saveMatchData(newMatches, region, latestPatch)
+  await saveMatchIndex(newMatchIds, region, latestPatch)
+
+  console.log(`  ✅ Saved ${newMatches.length} new matches for ${latestPatch}`)
   console.log(`✅ Completed ${region}`)
 }
 
@@ -175,10 +199,9 @@ export async function collectMatchesFromAllRegions(
   maxMatches?: number,
   skipDownload?: boolean,
   skipUpload?: boolean
-): Promise<void> {
+): Promise<string> {
   const api = createTftApi()
   const players = new Players()
-  const patchStats = new Map<string, Map<string, number>>()
 
   try {
     // S3から既存データをダウンロード（スキップオプションあり）
@@ -188,13 +211,13 @@ export async function collectMatchesFromAllRegions(
       console.log('⚠️ Skipping S3 download')
     }
 
+    // 最新パッチを動的に検出
+    const latestPatch = await detectLatestPatch(api, players)
+
     // 各リージョンからマッチを収集
     for (const region of regions) {
       try {
-        await collectMatchesFromRegion(api, players, region, tiers, maxMatches)
-
-        // TODO: 実際のマッチ数を集計してpatchStatsに追加
-        // この実装は後で改善が必要
+        await collectMatchesFromRegion(api, players, region, tiers, latestPatch, maxMatches)
       } catch (error) {
         console.error(`❌ Error collecting from ${region}:`, error)
         // エラーが発生してもほかのリージョンは続行
@@ -207,10 +230,12 @@ export async function collectMatchesFromAllRegions(
     // S3にアップロード（スキップオプションあり）
     if (!skipUpload) {
       console.log('\n📤 Uploading all data to S3...')
-      await finalizeDataStore()
+      await finalizeDataStore(latestPatch)
     } else {
       console.log('⚠️ Skipping S3 upload')
     }
+
+    return latestPatch
   } catch (error) {
     console.error('❌ Fatal error during collection:', error)
     throw error

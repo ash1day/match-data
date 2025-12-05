@@ -13,37 +13,30 @@ import * as path from 'path'
 import { createReadStream, createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-import { versionMap, sortedVersionDateNums } from './constants/version-constants'
 
 /**
- * 現在の最新パッチバージョンを取得
+ * コマンドライン引数からパッチを取得
  */
-function getLatestPatch(): string {
-  const today = parseInt(
-    new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, '')
-  )
-
-  for (const dateNum of sortedVersionDateNums) {
-    if (dateNum <= today) {
-      return versionMap[dateNum]
+function getPatchFromArgs(): string | undefined {
+  const args = process.argv.slice(2)
+  for (const arg of args) {
+    if (arg.startsWith('--patch=')) {
+      return arg.split('=')[1]
     }
   }
-  return versionMap[sortedVersionDateNums[0]]
+  return undefined
 }
 
 /**
- * ファイルパスが最新パッチまたはplayersファイルかどうか判定
+ * ファイルパスが指定パッチまたはplayersファイルかどうか判定
  */
-function isLatestPatchOrPlayers(filePath: string, latestPatch: string): boolean {
+function isPatchOrPlayers(filePath: string, patch: string): boolean {
   // players.json.gz は常に同期
   if (filePath.endsWith('players.json.gz')) {
     return true
   }
-  // 最新パッチのファイルのみ同期 (例: JP1/15.10/matches.parquet)
-  return filePath.includes(`/${latestPatch}/`)
+  // 指定パッチのファイルのみ同期 (例: JP1/15.10/matches.parquet)
+  return filePath.includes(`/${patch}/`)
 }
 
 const BUCKET_NAME = 'tftips'
@@ -145,14 +138,28 @@ async function main() {
   try {
     switch (command) {
       case 'download': {
-        const latestPatch = getLatestPatch()
-        console.log(`📥 Downloading from S3 (patch: ${latestPatch})...`)
-        const files = await listFiles()
-        const filteredFiles = files.filter((f) => isLatestPatchOrPlayers(f, latestPatch))
-        console.log(`Found ${filteredFiles.length} files for latest patch (${files.length} total in S3)`)
+        const patch = getPatchFromArgs()
+        if (patch) {
+          console.log(`📥 Downloading from S3 (patch: ${patch})...`)
+          const files = await listFiles()
+          const filteredFiles = files.filter((f) => isPatchOrPlayers(f, patch))
+          console.log(`Found ${filteredFiles.length} files for patch ${patch} (${files.length} total in S3)`)
 
-        for (const key of filteredFiles) {
-          if (key.endsWith('.parquet') || key.endsWith('.json.gz')) {
+          for (const key of filteredFiles) {
+            if (key.endsWith('.parquet') || key.endsWith('.json.gz')) {
+              const localPath = path.join(process.cwd(), key)
+              console.log(`  Downloading ${key}...`)
+              await downloadFile(key, localPath)
+            }
+          }
+        } else {
+          // パッチ指定なしの場合はplayersのみ
+          console.log('📥 Downloading players from S3...')
+          const files = await listFiles()
+          const playerFiles = files.filter((f) => f.endsWith('players.json.gz'))
+          console.log(`Found ${playerFiles.length} player files`)
+
+          for (const key of playerFiles) {
             const localPath = path.join(process.cwd(), key)
             console.log(`  Downloading ${key}...`)
             await downloadFile(key, localPath)
@@ -163,11 +170,15 @@ async function main() {
       }
 
       case 'upload': {
-        const latestPatch = getLatestPatch()
-        console.log(`📤 Uploading to S3 (patch: ${latestPatch})...`)
+        const patch = getPatchFromArgs()
+        if (!patch) {
+          console.error('❌ Error: --patch=X.Y is required for upload')
+          process.exit(1)
+        }
+        console.log(`📤 Uploading to S3 (patch: ${patch})...`)
         const localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-        const filteredFiles = localFiles.filter((f) => isLatestPatchOrPlayers(f, latestPatch))
-        console.log(`Found ${filteredFiles.length} files for latest patch (${localFiles.length} total local)`)
+        const filteredFiles = localFiles.filter((f) => isPatchOrPlayers(f, patch))
+        console.log(`Found ${filteredFiles.length} files for patch ${patch} (${localFiles.length} total local)`)
 
         for (const file of filteredFiles) {
           const localPath = path.join(process.cwd(), file)

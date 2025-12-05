@@ -33,9 +33,10 @@ export async function downloadFromS3(): Promise<void> {
 /**
  * S3にデータをアップロード
  */
-export async function uploadToS3(): Promise<void> {
+export async function uploadToS3(patch?: string): Promise<void> {
   console.log('📤 Uploading data to S3...')
-  execSync('tsx src/sync-s3.ts upload', { stdio: 'inherit', cwd: DATA_DIR })
+  const patchArg = patch ? ` --patch=${patch}` : ''
+  execSync(`tsx src/sync-s3.ts upload${patchArg}`, { stdio: 'inherit', cwd: DATA_DIR })
   console.log('✅ Upload complete')
 }
 
@@ -187,9 +188,9 @@ export async function initDataStore(): Promise<void> {
 /**
  * データ収集プロセスの完了
  */
-export async function finalizeDataStore(): Promise<void> {
+export async function finalizeDataStore(patch?: string): Promise<void> {
   // S3にアップロード
-  await uploadToS3()
+  await uploadToS3(patch)
 }
 
 /**
