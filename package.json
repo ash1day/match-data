@@ -2,6 +2,7 @@
   "name": "@tn/match-data",
   "version": "1.0.0",
   "description": "TFT match data collection from Riot API",
+  "packageManager": "yarn@4.11.0",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index-s3.ts",
