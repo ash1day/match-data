@@ -1,121 +1,52 @@
-# Match Data Collection Scripts
+# Clockworker
 
-This repository contains **scripts only** for collecting TFT (Teamfight Tactics) match data from Riot Games API.
+TFT (Teamfight Tactics) マッチデータ収集スクリプト。GitHub Actions で定期実行。
 
-## ⚠️ Data Storage
+## 仕組み
 
-**All data is stored in AWS S3. This repository contains no data files, only collection scripts.**
+1. JPサーバーの上位200人から最新パッチを自動検出
+2. 各リージョンからマッチデータを収集（最新パッチのみ）
+3. S3にアップロード
 
-## Data Structure in S3
-
-Data is stored in S3 bucket `tftips` under the `match-data/` prefix:
+## Data Structure (S3)
 
 ```
 s3://tftips/match-data/
 └── {region}/
-    ├── players.json.gz     # High-tier player data
+    ├── players.json.gz     # 上位プレイヤーデータ
     └── {patch}/
-        ├── matches.parquet # Match data in Parquet format
-        └── index.json.gz   # Match ID index
+        ├── matches.parquet # マッチデータ (Parquet)
+        └── index.json.gz   # マッチID一覧
 ```
 
-### Data Format
-
-- **region**: Server region (e.g., "JP1", "NA1", "EUW1", "KR", "BR1", etc.)
-- **players.json.gz**: High-tier player data (Challenger/Grandmaster/Master)
-- **matches.parquet**: Match data in compressed Parquet format
-- **index.json.gz**: List of match IDs for deduplication
-
 ## Setup
-
-### Prerequisites
-
-- Node.js 18+
-- AWS credentials with access to `tftips` S3 bucket
-- Riot API key
-
-### Environment Setup
 
 ```bash
 yarn install
 cp .env.example .env
-# Edit .env and add:
-# - RIOT_API_KEY
-# - AWS_ACCESS_KEY_ID
-# - AWS_SECRET_ACCESS_KEY
+# RIOT_API_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY を設定
 ```
 
-## Data Collection Workflow
-
-The collection process follows this flow:
-
-1. **Download** existing data from S3
-2. **Fetch** new data from Riot API (incremental/diff only)
-3. **Upload** merged data back to S3
-
-### Commands
+## Commands
 
 ```bash
-# Check S3 status
-yarn s3:status
-
-# Collect player data
-yarn collect-players
-
-# Full collection workflow (download → fetch diff → upload)
+# マッチ収集（全リージョン）
 yarn collect-matches
 
-# Manual S3 operations
-yarn s3:download  # Download from S3
-yarn s3:upload    # Upload to S3
+# オプション
+yarn collect-matches --regions=JP1,KR --max-matches=1000
+
+# プレイヤーデータ収集
+yarn collect-players
 ```
 
-## Automated Collection
+## GitHub Actions
 
-Data is automatically collected daily by GitHub Actions:
+- **Collect Matches**: 1日2回 (12:00, 24:00 JST)
+- **Collect Players**: 手動実行
 
-- Player data: Daily at 20:00 JST
-- Match data: Daily at 21:00 JST
-- **S3 Upload**: Automatically uploads to S3 on push to main branch
-- **Manual Sync**: Use GitHub Actions workflow for manual upload/download
-
-## Development
-
-```bash
-# Install dependencies
-yarn install
-
-# Run linting
-yarn lint
-
-# Fix linting issues
-yarn fix
-```
-
-## Data Format
-
-### Players Data (players.json.gz)
-
-Compressed JSON file containing an array of player objects:
-
-```json
-[
-  {
-    "summonerId": "...",
-    "summonerName": "...",
-    "puuid": "...",
-    "riotTag": "...",
-    "tier": "CHALLENGER",
-    "division": null,
-    "leaguePoints": 1234
-  }
-]
-```
-
-### Match Data (matches.parquet)
-
-Parquet format containing match objects following the Riot API MatchDto format.
+手動実行時は `max_matches` と `regions` を指定可能。
 
 ## License
 
-Match data is provided by Riot Games API and is subject to their terms of service.
+Riot Games API の利用規約に従う。
