@@ -1,4 +1,4 @@
-# Clockworker (時計仕掛けのマッチ収集人)
+# Clockworker
 
 TFT (Teamfight Tactics) マッチデータ収集スクリプト。GitHub Actions で定期実行。
 
