@@ -55,14 +55,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      - name: Download existing data from S3
+      - name: Collect match data
         run: |
-          echo "📥 Downloading existing data from S3..."
-          yarn tsx src/sync-s3.ts download || echo "⚠️ No existing data in S3 (may be first run)"
-
-      - name: Collect match data (incremental)
-        run: |
-          ARGS="--skip-download --skip-upload"
+          ARGS=""
           if [ -n "${{ github.event.inputs.max_matches }}" ]; then
             ARGS="$ARGS --max-matches=${{ github.event.inputs.max_matches }}"
           fi
@@ -70,19 +65,9 @@ jobs:
             ARGS="$ARGS --regions=${{ github.event.inputs.regions }}"
           fi
 
-          echo "🎮 Collecting new matches from Riot API..."
-          # Node.jsのヒープサイズを8GBに増やして実行
+          echo "🎮 Collecting matches from Riot API..."
           NODE_OPTIONS="--max-old-space-size=8192" yarn collect-matches $ARGS
+          echo "✅ Match collection complete!"
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
           NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Upload to S3
-        run: |
-          echo "📤 Uploading updated data to S3..."
-          yarn tsx src/sync-s3.ts upload
-
-      - name: Show summary
-        run: |
-          echo "✅ Match collection complete!"
-          yarn tsx src/sync-s3.ts status
