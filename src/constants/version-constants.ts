@@ -1,5 +1,7 @@
 // Version mapping constants
 export const versionMap: Record<number, string> = {
+  20251203: '15.10',
+  20251119: '15.9',
   20251105: '15.8',
   20251022: '15.7',
   20251008: '15.6',
