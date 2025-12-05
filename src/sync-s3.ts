@@ -13,7 +13,38 @@ import * as path from 'path'
 import { createReadStream, createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-// パッチフィルタリング機能は削除 - 全パッチを同期
+import { versionMap, sortedVersionDateNums } from './constants/version-constants'
+
+/**
+ * 現在の最新パッチバージョンを取得
+ */
+function getLatestPatch(): string {
+  const today = parseInt(
+    new Date()
+      .toISOString()
+      .slice(0, 10)
+      .replace(/-/g, '')
+  )
+
+  for (const dateNum of sortedVersionDateNums) {
+    if (dateNum <= today) {
+      return versionMap[dateNum]
+    }
+  }
+  return versionMap[sortedVersionDateNums[0]]
+}
+
+/**
+ * ファイルパスが最新パッチまたはplayersファイルかどうか判定
+ */
+function isLatestPatchOrPlayers(filePath: string, latestPatch: string): boolean {
+  // players.json.gz は常に同期
+  if (filePath.endsWith('players.json.gz')) {
+    return true
+  }
+  // 最新パッチのファイルのみ同期 (例: JP1/15.10/matches.parquet)
+  return filePath.includes(`/${latestPatch}/`)
+}
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'
@@ -114,11 +145,13 @@ async function main() {
   try {
     switch (command) {
       case 'download': {
-        console.log('📥 Downloading from S3...')
+        const latestPatch = getLatestPatch()
+        console.log(`📥 Downloading from S3 (patch: ${latestPatch})...`)
         const files = await listFiles()
-        console.log(`Found ${files.length} files in S3`)
+        const filteredFiles = files.filter((f) => isLatestPatchOrPlayers(f, latestPatch))
+        console.log(`Found ${filteredFiles.length} files for latest patch (${files.length} total in S3)`)
 
-        for (const key of files) {
+        for (const key of filteredFiles) {
           if (key.endsWith('.parquet') || key.endsWith('.json.gz')) {
             const localPath = path.join(process.cwd(), key)
             console.log(`  Downloading ${key}...`)
@@ -130,11 +163,13 @@ async function main() {
       }
 
       case 'upload': {
-        console.log('📤 Uploading to S3...')
+        const latestPatch = getLatestPatch()
+        console.log(`📤 Uploading to S3 (patch: ${latestPatch})...`)
         const localFiles = findLocalFiles(process.cwd(), /\.(parquet|json\.gz)$/)
-        console.log(`Found ${localFiles.length} local files to upload`)
+        const filteredFiles = localFiles.filter((f) => isLatestPatchOrPlayers(f, latestPatch))
+        console.log(`Found ${filteredFiles.length} files for latest patch (${localFiles.length} total local)`)
 
-        for (const file of localFiles) {
+        for (const file of filteredFiles) {
           const localPath = path.join(process.cwd(), file)
           console.log(`  Uploading ${file}...`)
           await uploadFile(localPath, file)
