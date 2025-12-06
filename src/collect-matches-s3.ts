@@ -111,11 +111,12 @@ async function collectMatchesFromRegion(
     console.log(`  Limited to ${playersToFetch} players due to match limit`)
   }
 
-  // マッチIDを取得
+  // マッチIDを取得（直近24時間のみ）
   const regionGroup = RegionToPlatform[region]
+  const oneDayAgo = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000) // Unix timestamp in seconds
 
   const matchListWithParams = async (puuid: string, rg: typeof regionGroup) => {
-    return api.Match.list(puuid, rg, { count: 100 })
+    return api.Match.list(puuid, rg, { count: 100, startTime: oneDayAgo })
   }
 
   console.log('  Fetching match IDs from API...')

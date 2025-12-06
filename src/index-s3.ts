@@ -70,7 +70,7 @@ export async function fetchRiotDataS3(): Promise<void> {
   ]
 
   const regions = args.regions || allRegions
-  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER, Tiers.DIAMOND, Tiers.PLATINUM]
+  const tiers = [Tiers.CHALLENGER, Tiers.GRANDMASTER, Tiers.MASTER, Tiers.DIAMOND]
   const maxMatches = args.maxMatches || 100000
 
   console.log('🚀 Starting Riot API data fetch (S3 version)...')
