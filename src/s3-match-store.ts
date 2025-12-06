@@ -1,9 +1,30 @@
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs'
+import { createReadStream } from 'node:fs'
 import * as path from 'node:path'
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { Database } from 'duckdb-async'
 import type { MatchTFTDTO } from 'twisted/dist/models-dto'
 import * as zlib from 'zlib'
+
+const BUCKET_NAME = 'tftips'
+const PREFIX = 'match-data/'
+const S3_REGION = 'ap-northeast-1'
+
+// S3クライアント（遅延初期化）
+let s3Client: S3Client | null = null
+function getS3Client(): S3Client {
+  if (!s3Client) {
+    s3Client = new S3Client({
+      region: S3_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+      }
+    })
+  }
+  return s3Client
+}
 
 /**
  * S3ベースのマッチデータストア
@@ -12,10 +33,27 @@ import * as zlib from 'zlib'
  * 1. S3から既存データをダウンロード
  * 2. 既存のマッチIDを読み込み
  * 3. 新規マッチのみAPI取得
- * 4. データをマージしてS3にアップロード
+ * 4. 新規ファイルのみS3にアップロード
  */
 
 const DATA_DIR = process.cwd()
+
+// 新規作成されたファイルを追跡（相対パス）
+const newlyCreatedFiles: Set<string> = new Set()
+
+/**
+ * 新規作成されたファイルを取得
+ */
+export function getNewlyCreatedFiles(): string[] {
+  return Array.from(newlyCreatedFiles)
+}
+
+/**
+ * 新規作成ファイルリストをクリア
+ */
+export function clearNewlyCreatedFiles(): void {
+  newlyCreatedFiles.clear()
+}
 
 /**
  * S3から既存データをダウンロード
@@ -32,13 +70,44 @@ export async function downloadFromS3(downloadIndexes = false): Promise<void> {
 }
 
 /**
- * S3にデータをアップロード
+ * S3に単一ファイルをアップロード
  */
-export async function uploadToS3(patch?: string): Promise<void> {
-  console.log('📤 Uploading data to S3...')
-  const patchArg = patch ? ` --patch=${patch}` : ''
-  execSync(`tsx src/sync-s3.ts upload${patchArg}`, { stdio: 'inherit', cwd: DATA_DIR })
+async function uploadFileToS3(localPath: string, key: string): Promise<void> {
+  const fileStream = createReadStream(localPath)
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: PREFIX + key,
+    Body: fileStream
+  })
+
+  await getS3Client().send(command)
+}
+
+/**
+ * S3にデータをアップロード（新規作成ファイルのみ）
+ */
+export async function uploadToS3(_patch?: string): Promise<void> {
+  const filesToUpload = getNewlyCreatedFiles()
+
+  if (filesToUpload.length === 0) {
+    console.log('📤 No new files to upload')
+    return
+  }
+
+  console.log(`📤 Uploading ${filesToUpload.length} new files to S3...`)
+
+  for (const file of filesToUpload) {
+    const localPath = path.join(DATA_DIR, file)
+    if (fs.existsSync(localPath)) {
+      console.log(`  Uploading ${file}...`)
+      await uploadFileToS3(localPath, file)
+    } else {
+      console.warn(`  ⚠️ File not found: ${file}`)
+    }
+  }
+
   console.log('✅ Upload complete')
+  clearNewlyCreatedFiles()
 }
 
 /**
@@ -125,6 +194,10 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
   // 一時ファイルを削除
   fs.unlinkSync(jsonPath)
 
+  // 新規作成ファイルとして追跡（相対パス）
+  const relativePath = path.relative(DATA_DIR, parquetPath)
+  newlyCreatedFiles.add(relativePath)
+
   console.log(`  ✅ Saved ${matches.length} matches to ${parquetPath}`)
 }
 
@@ -153,6 +226,10 @@ export async function saveMatchIndex(matchIds: string[], region: string, patch: 
     JSON.stringify(allIds, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
   fs.writeFileSync(indexPath, compressed)
+
+  // 新規作成ファイルとして追跡（相対パス）
+  const relativePath = path.relative(DATA_DIR, indexPath)
+  newlyCreatedFiles.add(relativePath)
 
   console.log(`  ✅ Saved ${allIds.length} match IDs to index`)
 }
@@ -200,6 +277,10 @@ export async function savePlayerData(players: any[], region: string): Promise<vo
     JSON.stringify(players, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
   fs.writeFileSync(filePath, compressed)
+
+  // 新規作成ファイルとして追跡（相対パス）
+  const relativePath = path.relative(DATA_DIR, filePath)
+  newlyCreatedFiles.add(relativePath)
 
   console.log(`  ✅ Saved ${players.length} players to ${filePath}`)
 }
