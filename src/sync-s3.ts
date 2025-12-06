@@ -96,7 +96,9 @@ async function listFiles(subPrefix?: string): Promise<string[]> {
   })
 
   const response = await s3Client.send(command)
-  return response.Contents?.map((item) => item.Key?.replace(PREFIX, '')).filter(Boolean) || []
+  return (
+    response.Contents?.map((item) => item.Key?.replace(PREFIX, '')).filter((key): key is string => Boolean(key)) || []
+  )
 }
 
 /**
