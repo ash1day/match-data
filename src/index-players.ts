@@ -4,6 +4,7 @@ dotenv.config({ override: true })
 
 import { collectPlayers } from './collect-players'
 import { Players } from './common/players'
+import type { Region } from './common/types'
 import { Regions, Tiers } from './common/types'
 import { createTftApi } from './utils/riot-api-utils'
 
@@ -19,7 +20,7 @@ export async function collectPlayersData(): Promise<void> {
   const regionsArg = args.find((arg) => arg.startsWith('--regions='))
 
   // 収集対象のリージョンとティア
-  let regions = [
+  let regions: Region[] = [
     Regions.JAPAN,
     Regions.KOREA,
     Regions.EU_WEST,
@@ -36,7 +37,7 @@ export async function collectPlayersData(): Promise<void> {
   // --regions 引数が指定された場合、そのリージョンのみを使用
   if (regionsArg) {
     const regionsList = regionsArg.split('=')[1].split(',')
-    regions = regionsList.map((r) => r.trim() as Regions)
+    regions = regionsList.map((r) => r.trim() as Region)
     console.log(`Using specified regions: ${regions.join(', ')}`)
   }
 
