@@ -156,11 +156,13 @@ async function main() {
             }
           }
         } else if (indexes) {
-          // --indexes: players + 全インデックスファイルをダウンロード
-          console.log('📥 Downloading players and indexes from S3...')
+          // --indexes: players + 全インデックス + 全parquetファイルをダウンロード
+          console.log('📥 Downloading players, indexes, and matches from S3...')
           const files = await listFiles()
-          const targetFiles = files.filter((f) => f.endsWith('players.json.gz') || f.endsWith('index.json.gz'))
-          console.log(`Found ${targetFiles.length} player/index files`)
+          const targetFiles = files.filter(
+            (f) => f.endsWith('players.json.gz') || f.endsWith('index.json.gz') || f.endsWith('matches.parquet')
+          )
+          console.log(`Found ${targetFiles.length} files to download`)
 
           for (const key of targetFiles) {
             const localPath = path.join(process.cwd(), key)
