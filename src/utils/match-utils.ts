@@ -12,5 +12,5 @@ export const formatGameVersionToPatch = (gameVersion: string): number => {
     const minor = match[2].padStart(2, '0')
     return Number(`${major}${minor}`) * 100
   }
-  return NaN
+  return Number.NaN
 }

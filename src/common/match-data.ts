@@ -1,6 +1,6 @@
 import { TftApi } from 'twisted'
-import { MatchTFTDTO } from 'twisted/dist/models-dto'
-import { RegionGroups } from 'twisted/dist/constants'
+import type { RegionGroups } from 'twisted/dist/constants'
+import type { MatchTFTDTO } from 'twisted/dist/models-dto'
 
 const api = new TftApi({
   key: process.env.RIOT_API_KEY!,
@@ -11,7 +11,7 @@ const api = new TftApi({
 /**
  * Fetch match IDs for a player
  */
-export async function fetchMatchIds(puuid: string, region: string, count: number = 20): Promise<string[]> {
+export async function fetchMatchIds(puuid: string, region: string, count = 20): Promise<string[]> {
   try {
     const response = await api.Match.list(puuid, getRouteRegion(region) as RegionGroups, { count })
     return response.response

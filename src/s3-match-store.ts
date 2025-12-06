@@ -1,9 +1,9 @@
-import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as zlib from 'zlib'
+import { execSync } from 'node:child_process'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { Database } from 'duckdb-async'
 import type { MatchTFTDTO } from 'twisted/dist/models-dto'
+import * as zlib from 'zlib'
 
 /**
  * S3ベースのマッチデータストア
@@ -20,10 +20,11 @@ const DATA_DIR = process.cwd()
 /**
  * S3から既存データをダウンロード
  */
-export async function downloadFromS3(): Promise<void> {
+export async function downloadFromS3(downloadIndexes = false): Promise<void> {
   console.log('📥 Downloading existing data from S3...')
   try {
-    execSync('tsx src/sync-s3.ts download', { stdio: 'inherit', cwd: DATA_DIR })
+    const indexFlag = downloadIndexes ? ' --indexes' : ''
+    execSync(`tsx src/sync-s3.ts download${indexFlag}`, { stdio: 'inherit', cwd: DATA_DIR })
     console.log('✅ Download complete')
   } catch (error) {
     console.warn('⚠️ Failed to download from S3 (may be first run):', error)
@@ -85,7 +86,7 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
   if (fs.existsSync(parquetPath)) {
     console.log(`  Loading existing matches from ${parquetPath}...`)
     const db = await Database.create(':memory:')
-    await db.run(`INSTALL parquet; LOAD parquet;`)
+    await db.run('INSTALL parquet; LOAD parquet;')
 
     const result = await db.all(`SELECT * FROM parquet_scan('${parquetPath}')`)
     existingMatches = result as MatchTFTDTO[]
@@ -107,14 +108,14 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
 
   // DuckDBでParquetファイルを作成
   const db = await Database.create(':memory:')
-  await db.run(`INSTALL parquet; LOAD parquet;`)
+  await db.run('INSTALL parquet; LOAD parquet;')
 
   // JSONをテーブルに読み込み
   const jsonPath = path.join(dir, 'temp_matches.json')
   // BigIntを文字列に変換してからJSON化
   fs.writeFileSync(
     jsonPath,
-    JSON.stringify(allMatches, (key, value) => (typeof value === 'bigint' ? value.toString() : value))
+    JSON.stringify(allMatches, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
 
   // read_json with explicit JSON type to preserve structure
@@ -170,7 +171,7 @@ export async function saveMatchIndex(matchIds: string[], region: string, patch: 
 
   // 圧縮して保存
   const compressed = zlib.gzipSync(
-    JSON.stringify(allIds, (key, value) => (typeof value === 'bigint' ? value.toString() : value))
+    JSON.stringify(allIds, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
   fs.writeFileSync(indexPath, compressed)
 
@@ -181,8 +182,8 @@ export async function saveMatchIndex(matchIds: string[], region: string, patch: 
  * データ収集プロセスの初期化
  */
 export async function initDataStore(): Promise<void> {
-  // S3から最新データをダウンロード
-  await downloadFromS3()
+  // S3から最新データをダウンロード（players + インデックス）
+  await downloadFromS3(true)
 }
 
 /**
@@ -217,7 +218,7 @@ export async function savePlayerData(players: any[], region: string): Promise<vo
 
   const filePath = path.join(dir, 'players.json.gz')
   const compressed = zlib.gzipSync(
-    JSON.stringify(players, (key, value) => (typeof value === 'bigint' ? value.toString() : value))
+    JSON.stringify(players, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
   fs.writeFileSync(filePath, compressed)
 

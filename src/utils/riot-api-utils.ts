@@ -62,9 +62,8 @@ export async function batchGetWithFlowRestriction<T, U extends unknown[]>(
             console.log(`Failed API call: ${api.name}(${key}, ${otherArgs.join(', ')})`)
             console.error(`Error: ${error.message}, Status: ${error.status}`)
             return null
-          } else {
-            throw error
           }
+          throw error
         }
       })
     )
@@ -95,7 +94,7 @@ export async function executeWithRetry<T>(
       if (error instanceof GenericError) {
         // レート制限エラーの場合は長めに待機
         if (error.status === 429 || error.status === 420) {
-          const waitTime = delayMs * Math.pow(2, attempt)
+          const waitTime = delayMs * 2 ** attempt
           console.log(`Rate limit hit, waiting ${waitTime}ms before retry...`)
           await new Promise((resolve) => setTimeout(resolve, waitTime))
           continue
@@ -107,7 +106,7 @@ export async function executeWithRetry<T>(
 
       // ネットワークエラーなどはリトライ
       if (attempt < maxRetries) {
-        const waitTime = delayMs * Math.pow(2, attempt)
+        const waitTime = delayMs * 2 ** attempt
         console.log(`Request failed, retrying in ${waitTime}ms...`)
         await new Promise((resolve) => setTimeout(resolve, waitTime))
       }

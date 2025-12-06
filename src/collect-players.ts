@@ -1,11 +1,10 @@
 import type { TftApi } from 'twisted'
-import { Regions as TwistedRegions, Divisions } from 'twisted/dist/constants'
+import { Divisions, type Regions as TwistedRegions } from 'twisted/dist/constants'
 
+import { BaseCollector } from './common/base-collector'
+import type { PlayerInfo, Players } from './common/players'
 import type { Region, Tier } from './common/types'
 import { Tiers } from './common/types'
-import type { Players } from './common/players'
-import { type PlayerInfo } from './common/players'
-import { BaseCollector } from './common/base-collector'
 
 /**
  * 指定ティアのプレイヤー一覧を取得（全員）
@@ -19,13 +18,16 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
   if (tier === Tiers.CHALLENGER) {
     const league = await api.League.getChallengerLeague(twistedRegion)
     return league.response.entries
-  } else if (tier === Tiers.GRANDMASTER) {
+  }
+  if (tier === Tiers.GRANDMASTER) {
     const league = await api.League.getGrandMasterLeague(twistedRegion)
     return league.response.entries
-  } else if (tier === Tiers.MASTER) {
+  }
+  if (tier === Tiers.MASTER) {
     const league = await api.League.getMasterLeague(twistedRegion)
     return league.response.entries
-  } else if (
+  }
+  if (
     tier === Tiers.DIAMOND ||
     tier === Tiers.PLATINUM ||
     tier === Tiers.GOLD ||
@@ -63,7 +65,7 @@ async function fetchLeagueEntries(api: TftApi, region: Region, tier: Tier): Prom
           } else {
             hasMore = false
           }
-        } catch (error) {
+        } catch (_error) {
           console.log(`      No more pages for ${tier} ${division} (page ${page})`)
           hasMore = false
         }

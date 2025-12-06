@@ -52,7 +52,7 @@ export abstract class BaseCollector {
    * 収集完了時のサマリーログ出力
    */
   protected _logCollectionSummary(totalCollected: number): void {
-    console.log(`\n=== Collection Summary ===`)
+    console.log('\n=== Collection Summary ===')
     console.log(`Total ${this._getItemName()} collected: ${totalCollected}`)
     console.log('\n=== Complete ===')
   }

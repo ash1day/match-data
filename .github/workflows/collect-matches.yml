@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       max_matches:
-        description: 'Maximum number of matches to collect (leave empty for no limit)'
+        description: 'Maximum number of matches to collect per region (leave empty for no limit)'
         required: false
         type: number
       regions:
@@ -12,8 +12,10 @@ on:
         required: false
         default: 'all'
         type: string
-  schedule:
-    - cron: '0 3,15 * * *' # 1日2回 日本時間 12:00, 24:00
+  workflow_run:
+    workflows: ["Collect Matches (S3)"]
+    types:
+      - completed
 
 env:
   NODE_ENV: production
@@ -21,9 +23,10 @@ env:
 jobs:
   collect-matches:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 330  # 5.5時間 - 余裕を持たせる
     permissions:
       contents: write
+      actions: write  # workflow_dispatch をトリガーするため
 
     steps:
       - name: Checkout repository

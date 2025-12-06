@@ -1,30 +1,31 @@
 #!/usr/bin/env tsx
 import * as dotenv from 'dotenv'
+
 dotenv.config({ override: true })
-import {
-  S3Client,
-  ListObjectsV2Command,
-  GetObjectCommand,
-  PutObjectCommand,
-  DeleteObjectCommand
-} from '@aws-sdk/client-s3'
-import * as fs from 'fs'
-import * as path from 'path'
-import { createReadStream, createWriteStream } from 'fs'
-import { pipeline } from 'stream/promises'
-import { Readable } from 'stream'
+
+import * as fs from 'node:fs'
+import { createReadStream, createWriteStream } from 'node:fs'
+import * as path from 'node:path'
+import type { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 /**
- * コマンドライン引数からパッチを取得
+ * コマンドライン引数をパース
  */
-function getPatchFromArgs(): string | undefined {
+function parseArgs(): { patch?: string; indexes?: boolean } {
   const args = process.argv.slice(2)
+  const result: { patch?: string; indexes?: boolean } = {}
+
   for (const arg of args) {
     if (arg.startsWith('--patch=')) {
-      return arg.split('=')[1]
+      result.patch = arg.split('=')[1]
+    } else if (arg === '--indexes') {
+      result.indexes = true
     }
   }
-  return undefined
+
+  return result
 }
 
 /**
@@ -95,7 +96,7 @@ async function listFiles(subPrefix?: string): Promise<string[]> {
   })
 
   const response = await s3Client.send(command)
-  return response.Contents?.map((item) => item.Key!.replace(PREFIX, '')).filter(Boolean) || []
+  return response.Contents?.map((item) => item.Key?.replace(PREFIX, '')).filter(Boolean) || []
 }
 
 /**
@@ -138,7 +139,7 @@ async function main() {
   try {
     switch (command) {
       case 'download': {
-        const patch = getPatchFromArgs()
+        const { patch, indexes } = parseArgs()
         if (patch) {
           console.log(`📥 Downloading from S3 (patch: ${patch})...`)
           const files = await listFiles()
@@ -151,6 +152,18 @@ async function main() {
               console.log(`  Downloading ${key}...`)
               await downloadFile(key, localPath)
             }
+          }
+        } else if (indexes) {
+          // --indexes: players + 全インデックスファイルをダウンロード
+          console.log('📥 Downloading players and indexes from S3...')
+          const files = await listFiles()
+          const targetFiles = files.filter((f) => f.endsWith('players.json.gz') || f.endsWith('index.json.gz'))
+          console.log(`Found ${targetFiles.length} player/index files`)
+
+          for (const key of targetFiles) {
+            const localPath = path.join(process.cwd(), key)
+            console.log(`  Downloading ${key}...`)
+            await downloadFile(key, localPath)
           }
         } else {
           // パッチ指定なしの場合はplayersのみ
@@ -170,7 +183,7 @@ async function main() {
       }
 
       case 'upload': {
-        const patch = getPatchFromArgs()
+        const { patch } = parseArgs()
         if (!patch) {
           console.error('❌ Error: --patch=X.Y is required for upload')
           process.exit(1)
@@ -219,5 +232,5 @@ async function main() {
 }
 
 if (require.main === module) {
-  main()
+  void main()
 }

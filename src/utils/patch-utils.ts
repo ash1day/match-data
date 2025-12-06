@@ -31,5 +31,5 @@ export function gameVersionToPatchDir(gameVersion: string): string {
  */
 export function patchToNumber(patch: string): number {
   const [major, minor] = patch.split('.')
-  return parseInt(major) * 100 + parseInt(minor)
+  return Number.parseInt(major) * 100 + Number.parseInt(minor)
 }

@@ -1,10 +1,11 @@
 import * as dotenv from 'dotenv'
-dotenv.config({ override: true })
-import { createTftApi } from './utils/riot-api-utils'
 
+dotenv.config({ override: true })
+
+import { collectPlayers } from './collect-players'
 import { Players } from './common/players'
 import { Regions, Tiers } from './common/types'
-import { collectPlayers } from './collect-players'
+import { createTftApi } from './utils/riot-api-utils'
 
 /**
  * プレイヤーデータ収集のメインエントリーポイント（Git版）
@@ -49,7 +50,9 @@ export async function collectPlayersData(): Promise<void> {
   const BATCH_SIZE = 3
   for (let i = 0; i < regions.length; i += BATCH_SIZE) {
     const batch = regions.slice(i, i + BATCH_SIZE)
-    console.log(`\nProcessing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(regions.length / BATCH_SIZE)}: ${batch.join(', ')}`)
+    console.log(
+      `\nProcessing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(regions.length / BATCH_SIZE)}: ${batch.join(', ')}`
+    )
 
     const results = await Promise.allSettled(
       batch.map(async (region) => {

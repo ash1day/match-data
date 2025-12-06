@@ -1,20 +1,18 @@
 import type { TftApi } from 'twisted'
 import type { MatchTFTDTO } from 'twisted/dist/models-dto'
-
-import { batchGetWithFlowRestriction, REQUEST_BUFFER_RATE, createTftApi } from './utils/riot-api-utils'
-
-import type { Region, Tier } from './common/types'
-import { Regions, RegionToPlatform, Tiers } from './common/types'
-import { saveMatchData, saveMatchIndex, filterNewMatchIds, initDataStore, finalizeDataStore } from './s3-match-store'
-import { gameVersionToPatchDir, patchToNumber } from './utils/patch-utils'
+import { MATCH_DETAIL_API_RATE_LIMIT, MATCH_LIST_API_RATE_LIMIT } from './common/constants'
 import { Players } from './common/players'
-import { MATCH_LIST_API_RATE_LIMIT, MATCH_DETAIL_API_RATE_LIMIT } from './common/constants'
+import type { Region, Tier } from './common/types'
+import { Regions, RegionToPlatform } from './common/types'
+import { filterNewMatchIds, finalizeDataStore, initDataStore, saveMatchData, saveMatchIndex } from './s3-match-store'
+import { gameVersionToPatchDir, patchToNumber } from './utils/patch-utils'
+import { batchGetWithFlowRestriction, createTftApi, REQUEST_BUFFER_RATE } from './utils/riot-api-utils'
 
 /**
  * Playersからプレイヤー一覧を取得
  */
 async function getPlayersFromCache(players: Players, region: Region, tiers: Tier[]): Promise<string[]> {
-  console.log(`  Loading players from cache...`)
+  console.log('  Loading players from cache...')
 
   const allPlayers = await players.getAllPlayers(region)
   console.log(`  Found ${allPlayers.length} cached players`)
@@ -120,7 +118,7 @@ async function collectMatchesFromRegion(
     return api.Match.list(puuid, rg, { count: 100 })
   }
 
-  console.log(`  Fetching match IDs from API...`)
+  console.log('  Fetching match IDs from API...')
   const matchIdArrays = await batchGetWithFlowRestriction<string[], [typeof regionGroup]>(
     matchListWithParams,
     uniquePuuids,
@@ -132,46 +130,8 @@ async function collectMatchesFromRegion(
   const allMatchIds = Array.from(new Set(matchIdArrays.flat()))
   console.log(`  Found ${allMatchIds.length} total match IDs from API`)
 
-  // マッチ詳細を取得（パッチごとに処理）
-  const matchDetailWithParams = async (matchId: string, rg: typeof regionGroup) => {
-    return api.Match.get(matchId, rg)
-  }
-
-  console.log(`  Fetching match details...`)
-  const matches = await batchGetWithFlowRestriction<MatchTFTDTO, [typeof regionGroup]>(
-    matchDetailWithParams,
-    allMatchIds.slice(0, maxMatches),
-    [regionGroup],
-    MATCH_DETAIL_API_RATE_LIMIT,
-    REQUEST_BUFFER_RATE
-  )
-
-  // 最新パッチのマッチのみフィルタリング
-  const latestPatchMatches: MatchTFTDTO[] = []
-
-  for (const match of matches) {
-    try {
-      const patch = gameVersionToPatchDir(match.info.game_version)
-      if (patch === latestPatch) {
-        latestPatchMatches.push(match)
-      }
-    } catch (error) {
-      console.warn('  Failed to parse patch from game version:', match.info.game_version, error)
-      continue
-    }
-  }
-
-  console.log(`  📊 Found ${latestPatchMatches.length} matches for patch ${latestPatch} (${matches.length} total fetched)`)
-
-  if (latestPatchMatches.length === 0) {
-    console.log(`  ⚠️ No matches found for latest patch ${latestPatch}`)
-    console.log(`✅ Completed ${region}`)
-    return
-  }
-
-  // 既存のマッチIDと比較して新規のみフィルタリング
-  const matchIds = latestPatchMatches.map((m) => m.metadata.match_id)
-  const newMatchIds = await filterNewMatchIds(matchIds, region, latestPatch)
+  // 既存のマッチIDと比較して新規のみフィルタリング（API呼び出し前に実施）
+  const newMatchIds = await filterNewMatchIds(allMatchIds, region, latestPatch)
 
   if (newMatchIds.length === 0) {
     console.log(`  No new matches for ${latestPatch}`)
@@ -179,12 +139,48 @@ async function collectMatchesFromRegion(
     return
   }
 
-  // 新規マッチのみ取得
-  const newMatches = latestPatchMatches.filter((m) => newMatchIds.includes(m.metadata.match_id))
+  // 新規マッチのみ詳細を取得
+  const matchDetailWithParams = async (matchId: string, rg: typeof regionGroup) => {
+    return api.Match.get(matchId, rg)
+  }
+
+  const matchIdsToFetch = maxMatches ? newMatchIds.slice(0, maxMatches) : newMatchIds
+  console.log(`  Fetching ${matchIdsToFetch.length} new match details...`)
+  const matches = await batchGetWithFlowRestriction<MatchTFTDTO, [typeof regionGroup]>(
+    matchDetailWithParams,
+    matchIdsToFetch,
+    [regionGroup],
+    MATCH_DETAIL_API_RATE_LIMIT,
+    REQUEST_BUFFER_RATE
+  )
+
+  // 最新パッチのマッチのみフィルタリング（念のため確認）
+  const newMatches: MatchTFTDTO[] = []
+
+  for (const match of matches) {
+    try {
+      const patch = gameVersionToPatchDir(match.info.game_version)
+      if (patch === latestPatch) {
+        newMatches.push(match)
+      }
+    } catch (error) {
+      console.warn('  Failed to parse patch from game version:', match.info.game_version, error)
+    }
+  }
+
+  console.log(`  📊 Found ${newMatches.length} matches for patch ${latestPatch} (${matches.length} fetched)`)
+
+  if (newMatches.length === 0) {
+    console.log(`  ⚠️ No new matches found for latest patch ${latestPatch}`)
+    console.log(`✅ Completed ${region}`)
+    return
+  }
+
+  const savedMatchIds = newMatches.map((m) => m.metadata.match_id)
 
   // データを保存（既存データとマージ）
   await saveMatchData(newMatches, region, latestPatch)
-  await saveMatchIndex(newMatchIds, region, latestPatch)
+  await saveMatchIndex(savedMatchIds, region, latestPatch)
 
   console.log(`  ✅ Saved ${newMatches.length} new matches for ${latestPatch}`)
   console.log(`✅ Completed ${region}`)

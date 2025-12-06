@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { formatGameVersionToPatch } from './utils/match-utils'
 
 const BUCKET_NAME = 'tftips'
@@ -87,7 +87,7 @@ export async function updateMetadata(patch: string, region: string, matchCount: 
   }
 
   // マッチ数を更新
-  const oldCount = metadata.patches[patch].regions[region].matchCount
+  const _oldCount = metadata.patches[patch].regions[region].matchCount
   metadata.patches[patch].regions[region].matchCount = matchCount
   metadata.patches[patch].regions[region].lastUpdated = new Date().toISOString()
 
@@ -101,8 +101,8 @@ export async function updateMetadata(patch: string, region: string, matchCount: 
 
   // 最新パッチを判定（最も新しいパッチ番号）
   const allPatches = Object.keys(metadata.patches).sort((a, b) => {
-    const aNum = parseFloat(a.replace('.', ''))
-    const bNum = parseFloat(b.replace('.', ''))
+    const aNum = Number.parseFloat(a.replace('.', ''))
+    const bNum = Number.parseFloat(b.replace('.', ''))
     return bNum - aNum
   })
   metadata.latestPatch = allPatches[0] || patch
@@ -147,8 +147,8 @@ export async function aggregateMetadata(patchStats: Map<string, Map<string, numb
 
   // 最新パッチを判定
   const allPatches = Array.from(patchStats.keys()).sort((a, b) => {
-    const aNum = parseFloat(a.replace('.', ''))
-    const bNum = parseFloat(b.replace('.', ''))
+    const aNum = Number.parseFloat(a.replace('.', ''))
+    const bNum = Number.parseFloat(b.replace('.', ''))
     return bNum - aNum
   })
   metadata.latestPatch = allPatches[0] || ''

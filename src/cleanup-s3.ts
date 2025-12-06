@@ -1,7 +1,9 @@
 #!/usr/bin/env tsx
 import * as dotenv from 'dotenv'
+
 dotenv.config({ override: true })
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
+
+import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 
 const BUCKET_NAME = 'tftips'
 const PREFIX = 'match-data/'

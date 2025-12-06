@@ -3,9 +3,10 @@
  * S3の既存データからメタデータを生成・更新
  */
 
-import { S3Client, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3'
-import { aggregateMetadata } from './metadata'
+import { HeadObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import * as dotenv from 'dotenv'
+import { aggregateMetadata } from './metadata'
+
 dotenv.config({ override: true })
 
 const BUCKET_NAME = 'tftips'
@@ -54,7 +55,7 @@ async function scanS3AndUpdateMetadata() {
           // ファイルサイズから概算マッチ数を計算（1マッチ約1.5KB）
           const estimatedMatches = Math.round((file.Size || 0) / 1500)
 
-          patchStats.get(patch)!.set(region, estimatedMatches)
+          patchStats.get(patch)?.set(region, estimatedMatches)
           console.log(`  ${patch}/${region}: ~${estimatedMatches} matches (${Math.round((file.Size || 0) / 1024)}KB)`)
         }
       }

@@ -1,7 +1,9 @@
 import * as dotenv from 'dotenv'
+
 dotenv.config({ override: true })
+
 import { collectMatchesFromAllRegions } from './collect-matches-s3'
-import { Regions, Tiers, type Region } from './common/types'
+import { type Region, Regions, Tiers } from './common/types'
 
 /**
  * コマンドライン引数をパース
@@ -13,7 +15,7 @@ function parseArgs(): { maxMatches?: number; regions?: Region[]; skipDownload?: 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (arg.startsWith('--max-matches=')) {
-      result.maxMatches = parseInt(arg.split('=')[1], 10)
+      result.maxMatches = Number.parseInt(arg.split('=')[1], 10)
     } else if (arg.startsWith('--regions=')) {
       const regionList = arg.split('=')[1].split(',')
       result.regions = regionList.map((r) => r.trim() as Region)
@@ -24,7 +26,7 @@ function parseArgs(): { maxMatches?: number; regions?: Region[]; skipDownload?: 
       i++ // 次の引数をスキップ
     } else if (arg === '--max-matches' && i + 1 < args.length) {
       // --max-matches 100 形式もサポート
-      result.maxMatches = parseInt(args[i + 1], 10)
+      result.maxMatches = Number.parseInt(args[i + 1], 10)
       i++ // 次の引数をスキップ
     } else if (arg === '--skip-download') {
       result.skipDownload = true
