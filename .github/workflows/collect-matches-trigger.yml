@@ -14,10 +14,32 @@ jobs:
   trigger-next:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger next collection
+      - name: Check if already running and trigger if not
         uses: actions/github-script@v7
         with:
           script: |
+            // Check for in_progress or queued runs
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'collect-matches.yml',
+              status: 'in_progress'
+            })
+
+            const queuedRuns = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'collect-matches.yml',
+              status: 'queued'
+            })
+
+            const activeCount = runs.data.total_count + queuedRuns.data.total_count
+
+            if (activeCount > 0) {
+              console.log(`Already ${activeCount} run(s) active/queued, skipping trigger`)
+              return
+            }
+
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
