@@ -9,6 +9,15 @@ import { gameVersionToPatchDir, patchToNumber } from './utils/patch-utils'
 import { batchGetWithFlowRestriction, createTftApi, REQUEST_BUFFER_RATE } from './utils/riot-api-utils'
 
 /**
+ * タイムスタンプ付きログ出力
+ */
+function logWithTime(message: string): void {
+  const now = new Date()
+  const timestamp = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  console.log(`[${timestamp}] ${message}`)
+}
+
+/**
  * Playersからプレイヤー一覧を取得
  */
 async function getPlayersFromCache(players: Players, region: Region, tiers: Tier[]): Promise<string[]> {
@@ -29,7 +38,7 @@ async function getPlayersFromCache(players: Players, region: Region, tiers: Tier
  * JPサーバーの上位プレイヤーから最新パッチを動的に検出
  */
 async function detectLatestPatch(api: TftApi, players: Players): Promise<string> {
-  console.log('\n🔍 Detecting latest patch from JP server...')
+  logWithTime('Detecting latest patch from JP server...')
 
   // JPサーバーから200人のプレイヤーを取得
   const jpPlayers = await players.getAllPlayers(Regions.JAPAN)
@@ -84,7 +93,7 @@ async function detectLatestPatch(api: TftApi, players: Players): Promise<string>
     }
   }
 
-  console.log(`  ✅ Detected latest patch: ${latestPatch}`)
+  logWithTime(`Detected latest patch: ${latestPatch}`)
   return latestPatch
 }
 
@@ -99,7 +108,8 @@ async function collectMatchesFromRegion(
   latestPatch: string,
   maxMatches?: number
 ): Promise<void> {
-  console.log(`\n📍 Collecting matches from ${region} (patch: ${latestPatch})...`)
+  const regionStart = Date.now()
+  logWithTime(`Starting ${region} (patch: ${latestPatch})`)
 
   // PlayerCacheからプレイヤーを取得
   let uniquePuuids = await getPlayersFromCache(players, region, tiers)
@@ -136,7 +146,8 @@ async function collectMatchesFromRegion(
 
   if (newMatchIds.length === 0) {
     console.log(`  No new matches for ${latestPatch}`)
-    console.log(`✅ Completed ${region}`)
+    const elapsed = Math.round((Date.now() - regionStart) / 1000)
+    logWithTime(`Completed ${region} (${elapsed}s)`)
     return
   }
 
@@ -172,8 +183,9 @@ async function collectMatchesFromRegion(
   console.log(`  📊 Found ${newMatches.length} matches for patch ${latestPatch} (${matches.length} fetched)`)
 
   if (newMatches.length === 0) {
-    console.log(`  ⚠️ No new matches found for latest patch ${latestPatch}`)
-    console.log(`✅ Completed ${region}`)
+    console.log(`  No new matches found for latest patch ${latestPatch}`)
+    const elapsed = Math.round((Date.now() - regionStart) / 1000)
+    logWithTime(`Completed ${region} (${elapsed}s)`)
     return
   }
 
@@ -183,8 +195,9 @@ async function collectMatchesFromRegion(
   await saveMatchData(newMatches, region, latestPatch)
   await saveMatchIndex(savedMatchIds, region, latestPatch)
 
-  console.log(`  ✅ Saved ${newMatches.length} new matches for ${latestPatch}`)
-  console.log(`✅ Completed ${region}`)
+  console.log(`  Saved ${newMatches.length} new matches for ${latestPatch}`)
+  const elapsed = Math.round((Date.now() - regionStart) / 1000)
+  logWithTime(`Completed ${region} (${elapsed}s, ${newMatches.length} matches)`)
 }
 
 /**
@@ -197,44 +210,50 @@ export async function collectMatchesFromAllRegions(
   skipDownload?: boolean,
   skipUpload?: boolean
 ): Promise<string> {
+  const totalStart = Date.now()
   const api = createTftApi()
   const players = new Players()
 
   try {
     // S3から既存データをダウンロード（スキップオプションあり）
     if (!skipDownload) {
+      logWithTime('Downloading from S3...')
       await initDataStore()
     } else {
-      console.log('⚠️ Skipping S3 download')
+      logWithTime('Skipping S3 download')
     }
 
     // 最新パッチを動的に検出
     const latestPatch = await detectLatestPatch(api, players)
 
     // 各リージョンからマッチを収集
-    for (const region of regions) {
+    for (let i = 0; i < regions.length; i++) {
+      const region = regions[i]
+      logWithTime(`Progress: ${i + 1}/${regions.length} regions`)
       try {
         await collectMatchesFromRegion(api, players, region, tiers, latestPatch, maxMatches)
       } catch (error) {
-        console.error(`❌ Error collecting from ${region}:`, error)
+        console.error(`Error collecting from ${region}:`, error)
         // エラーが発生してもほかのリージョンは続行
       }
     }
 
-    // メタデータを更新（現時点では集計機能は未実装）
-    // await aggregateMetadata(patchStats)
-
     // S3にアップロード（スキップオプションあり）
     if (!skipUpload) {
-      console.log('\n📤 Uploading all data to S3...')
+      logWithTime('Uploading all data to S3...')
       await finalizeDataStore(latestPatch)
     } else {
-      console.log('⚠️ Skipping S3 upload')
+      logWithTime('Skipping S3 upload')
     }
+
+    const totalElapsed = Math.round((Date.now() - totalStart) / 1000)
+    const minutes = Math.floor(totalElapsed / 60)
+    const seconds = totalElapsed % 60
+    logWithTime(`All regions complete! Total time: ${minutes}m ${seconds}s`)
 
     return latestPatch
   } catch (error) {
-    console.error('❌ Fatal error during collection:', error)
+    console.error('Fatal error during collection:', error)
     throw error
   }
 }
