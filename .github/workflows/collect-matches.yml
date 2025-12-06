@@ -77,16 +77,3 @@ jobs:
         env:
           RIOT_API_KEY: ${{ secrets.RIOT_API_KEY }}
           NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Trigger tn generate-stats workflow
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.TN_WORKFLOW_TOKEN }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: 'ash1day',
-              repo: 'tftips-next',
-              workflow_id: 'generate-stats.yml',
-              ref: 'master'
-            })
-            console.log('Triggered tn generate-stats workflow')
