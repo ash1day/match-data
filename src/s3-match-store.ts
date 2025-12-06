@@ -72,39 +72,24 @@ export async function filterNewMatchIds(matchIds: string[], region: string, patc
 }
 
 /**
- * マッチデータを保存（Parquet形式）
+ * 今日の日付文字列を取得 (YYYY-MM-DD)
+ */
+function getTodayDateString(): string {
+  const now = new Date()
+  return now.toISOString().split('T')[0]
+}
+
+/**
+ * マッチデータを保存（Parquet形式、日付別ファイル）
  */
 export async function saveMatchData(matches: MatchTFTDTO[], region: string, patch: string): Promise<void> {
   const dir = path.join(DATA_DIR, region, patch)
   fs.mkdirSync(dir, { recursive: true })
 
-  const parquetPath = path.join(dir, 'matches.parquet')
-  const tempParquetPath = path.join(dir, 'matches_new.parquet')
+  const dateStr = getTodayDateString()
+  const parquetPath = path.join(dir, `${dateStr}.parquet`)
 
-  // 既存データがある場合はマージ
-  let existingMatches: MatchTFTDTO[] = []
-  if (fs.existsSync(parquetPath)) {
-    console.log(`  Loading existing matches from ${parquetPath}...`)
-    const db = await Database.create(':memory:')
-    await db.run('INSTALL parquet; LOAD parquet;')
-
-    const result = await db.all(`SELECT * FROM parquet_scan('${parquetPath}')`)
-    existingMatches = result as MatchTFTDTO[]
-    console.log(`  Loaded ${existingMatches.length} existing matches`)
-    await db.close()
-  }
-
-  // マッチIDでユニーク化
-  const matchMap = new Map<string, MatchTFTDTO>()
-  for (const match of existingMatches) {
-    matchMap.set(match.metadata.match_id, match)
-  }
-  for (const match of matches) {
-    matchMap.set(match.metadata.match_id, match)
-  }
-
-  const allMatches = Array.from(matchMap.values())
-  console.log(`  Saving ${allMatches.length} total matches to ${tempParquetPath}`)
+  console.log(`  Saving ${matches.length} matches to ${parquetPath}`)
 
   // DuckDBでParquetファイルを作成
   const db = await Database.create(':memory:')
@@ -112,19 +97,17 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
 
   // JSONをテーブルに読み込み
   const jsonPath = path.join(dir, 'temp_matches.json')
-  // BigIntを文字列に変換してからJSON化
   fs.writeFileSync(
     jsonPath,
-    JSON.stringify(allMatches, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
+    JSON.stringify(matches, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))
   )
 
-  // read_json with explicit JSON type to preserve structure
   await db.run(`
-    CREATE TABLE matches AS 
-    SELECT 
+    CREATE TABLE matches AS
+    SELECT
       metadata,
       info
-    FROM read_json('${jsonPath}', 
+    FROM read_json('${jsonPath}',
       columns = {
         metadata: 'JSON',
         info: 'JSON'
@@ -133,20 +116,14 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
   `)
 
   // Parquetとして保存
-  await db.run(`COPY matches TO '${tempParquetPath}' (FORMAT PARQUET, COMPRESSION ZSTD)`)
+  await db.run(`COPY matches TO '${parquetPath}' (FORMAT PARQUET, COMPRESSION ZSTD)`)
 
   await db.close()
 
   // 一時ファイルを削除
   fs.unlinkSync(jsonPath)
 
-  // 新しいファイルで置き換え
-  if (fs.existsSync(parquetPath)) {
-    fs.unlinkSync(parquetPath)
-  }
-  fs.renameSync(tempParquetPath, parquetPath)
-
-  console.log(`  ✅ Saved ${allMatches.length} matches to ${parquetPath}`)
+  console.log(`  ✅ Saved ${matches.length} matches to ${parquetPath}`)
 }
 
 /**

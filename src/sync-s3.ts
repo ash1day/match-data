@@ -8,7 +8,13 @@ import { createReadStream, createWriteStream } from 'node:fs'
 import * as path from 'node:path'
 import type { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3'
 
 /**
  * コマンドライン引数をパース
@@ -221,6 +227,39 @@ async function main() {
 
         console.log('\nRecent local files:')
         localFiles.slice(-10).forEach((f) => console.log(`  - ${f}`))
+        break
+      }
+
+      case 'cleanup': {
+        const { patch } = parseArgs()
+        if (!patch) {
+          console.error('❌ Error: --patch=X.Y is required for cleanup (keeps only this patch)')
+          process.exit(1)
+        }
+        console.log(`🗑️  Cleaning up S3 (keeping only patch: ${patch})...`)
+        const s3Files = await listFiles()
+        const filesToDelete = s3Files.filter((f) => !isPatchOrPlayers(f, patch))
+        console.log(`Found ${filesToDelete.length} files to delete (keeping ${s3Files.length - filesToDelete.length})`)
+
+        if (filesToDelete.length === 0) {
+          console.log('✅ Nothing to delete')
+          break
+        }
+
+        // Delete in batches of 1000 (S3 limit)
+        const BATCH_SIZE = 1000
+        for (let i = 0; i < filesToDelete.length; i += BATCH_SIZE) {
+          const batch = filesToDelete.slice(i, i + BATCH_SIZE)
+          const deleteCommand = new DeleteObjectsCommand({
+            Bucket: BUCKET_NAME,
+            Delete: {
+              Objects: batch.map((key) => ({ Key: PREFIX + key }))
+            }
+          })
+          await s3Client.send(deleteCommand)
+          console.log(`  Deleted ${batch.length} files`)
+        }
+        console.log('✅ Cleanup complete')
         break
       }
 
