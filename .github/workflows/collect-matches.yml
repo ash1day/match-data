@@ -20,6 +20,10 @@ on:
     types:
       - completed
 
+concurrency:
+  group: collect-matches
+  cancel-in-progress: false
+
 env:
   NODE_ENV: production
 
