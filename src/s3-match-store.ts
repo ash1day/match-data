@@ -72,11 +72,13 @@ export async function filterNewMatchIds(matchIds: string[], region: string, patc
 }
 
 /**
- * 今日の日付文字列を取得 (YYYY-MM-DD)
+ * タイムスタンプ文字列を取得 (YYYYMMDD-HHmmss)
  */
-function getTodayDateString(): string {
+function getTimestampString(): string {
   const now = new Date()
-  return now.toISOString().split('T')[0]
+  const date = now.toISOString().split('T')[0].replace(/-/g, '')
+  const time = now.toTimeString().split(' ')[0].replace(/:/g, '')
+  return `${date}-${time}`
 }
 
 /**
@@ -86,8 +88,8 @@ export async function saveMatchData(matches: MatchTFTDTO[], region: string, patc
   const dir = path.join(DATA_DIR, region, patch)
   fs.mkdirSync(dir, { recursive: true })
 
-  const dateStr = getTodayDateString()
-  const parquetPath = path.join(dir, `${dateStr}.parquet`)
+  const timestamp = getTimestampString()
+  const parquetPath = path.join(dir, `${timestamp}.parquet`)
 
   console.log(`  Saving ${matches.length} matches to ${parquetPath}`)
 
