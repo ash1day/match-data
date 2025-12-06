@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+concurrency:
+  group: collect-matches-trigger
+  cancel-in-progress: true
+
 jobs:
   trigger-next:
     runs-on: ubuntu-latest
